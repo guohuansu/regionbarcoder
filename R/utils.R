@@ -28,6 +28,10 @@ rb_find_full_yzfishdb <- function() {
   if (nzchar(env_path) && file.exists(env_path)) {
     return(normalizePath(env_path, winslash = "/", mustWork = TRUE))
   }
+  cached_path <- rb_db_path()
+  if (file.exists(cached_path)) {
+    return(normalizePath(cached_path, winslash = "/", mustWork = TRUE))
+  }
   roots <- normalizePath(c(getwd(), dirname(getwd()), dirname(dirname(getwd())),
                            dirname(dirname(dirname(getwd())))),
                          winslash = "/", mustWork = FALSE)

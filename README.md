@@ -17,8 +17,36 @@ install.packages("remotes")
 remotes::install_github("guohuansu/regionbarcoder")
 ```
 
-The R package does not bundle the full YZFishDB database. Download the full
-database release separately, then point `regionbarcoder` to the local files:
+The R package does not bundle the full YZFishDB database because the SQLite
+release is large. The recommended release model is:
+
+- install the R package from GitHub;
+- archive the full `YZFishDB.db` release on Zenodo or a GitHub Release;
+- let `regionbarcoder` download and cache the database on first use.
+
+After the full database release URL is available, users can install it with:
+
+```r
+library(regionbarcoder)
+
+rb_install_db(
+  url = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
+)
+
+con <- rb_connect()
+```
+
+For a lab or manuscript workflow, the URL can also be configured once:
+
+```r
+Sys.setenv(
+  RB_YZFISHDB_URL = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
+)
+
+con <- rb_connect(download = TRUE)
+```
+
+Advanced users can still point `regionbarcoder` to an existing local database:
 
 ```r
 Sys.setenv(
@@ -36,7 +64,8 @@ for demonstrations and exact sequence matching.
 ```r
 library(regionbarcoder)
 
-con <- rb_connect("path/to/YZFishDB.db")
+# Uses the bundled demo database unless a full YZFishDB path/cache is available.
+con <- rb_connect()
 rb_tables(con)
 
 seqs <- rb_get_sequences(con, marker = "12S", occurrence = "native")
@@ -50,7 +79,7 @@ Users with Yangtze River Basin fish eDNA ASVs can also assign ASV sequences
 directly against YZFishDB:
 
 ```r
-con <- rb_connect("path/to/YZFishDB.db")
+con <- rb_connect(download = TRUE)
 
 assignment <- rb_assign_edna(
   asv_fasta = "my_asvs.fasta",

@@ -14,9 +14,13 @@ rb_available_datasets <- function() {
   )
 }
 
-rb_connect <- function(path = NULL) {
+rb_connect <- function(path = NULL, download = FALSE, url = rb_db_url()) {
   if (is.null(path)) {
-    path <- rb_available_datasets()$path[[1]]
+    if (isTRUE(download) && !file.exists(rb_db_path())) {
+      path <- rb_install_db(url = url)
+    } else {
+      path <- rb_available_datasets()$path[[1]]
+    }
   }
   if (!nzchar(path) || !file.exists(path)) {
     stop("Database file does not exist: ", path, call. = FALSE)

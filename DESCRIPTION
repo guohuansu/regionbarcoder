@@ -18,9 +18,11 @@ RoxygenNote: 7.3.2
 Depends: R (>= 4.1)
 Imports:
     DBI,
-    RSQLite
+    RSQLite,
+    tools
 Suggests:
     testthat (>= 3.0.0),
+    withr,
     knitr,
     rmarkdown
 Config/testthat/edition: 3

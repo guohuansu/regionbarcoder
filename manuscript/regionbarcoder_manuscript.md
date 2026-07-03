@@ -135,9 +135,15 @@ A typical workflow begins by opening a database connection:
 
 ```r
 library(regionbarcoder)
-con <- rb_connect("zenodo/data/YZFishDB.db")
+
+rb_install_db()
+con <- rb_connect()
 rb_tables(con)
 ```
+
+The default database installer retrieves the archived YZFishDB SQLite release
+from Zenodo (DOI: 10.5281/zenodo.18155084), caches it in the user's R data
+directory, and verifies the archived file size and md5 checksum before use.
 
 Users then retrieve a reference subset:
 

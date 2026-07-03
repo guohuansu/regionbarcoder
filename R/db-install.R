@@ -1,8 +1,24 @@
+rb_yzfishdb_release <- function() {
+  data.frame(
+    doi = "10.5281/zenodo.18155084",
+    record = "18155084",
+    filename = "YZFishDB.db",
+    url = rb_default_yzfishdb_url(),
+    size_bytes = 635740160,
+    md5 = "0e5e0c3e294c4a55bcc3065c26db9c84",
+    stringsAsFactors = FALSE
+  )
+}
+
+rb_default_yzfishdb_url <- function() {
+  "https://zenodo.org/api/records/18155084/files/YZFishDB.db/content"
+}
+
 rb_db_url <- function() {
   env_url <- Sys.getenv("RB_YZFISHDB_URL", "")
   if (nzchar(env_url)) return(env_url)
-  opt_url <- getOption("regionbarcoder.yzfishdb_url", "")
-  if (is.null(opt_url)) return("")
+  opt_url <- getOption("regionbarcoder.yzfishdb_url", rb_default_yzfishdb_url())
+  if (is.null(opt_url)) return(rb_default_yzfishdb_url())
   as.character(opt_url)
 }
 
@@ -26,7 +42,7 @@ rb_db_available <- function(path = rb_db_path()) {
 }
 
 rb_install_db <- function(url = rb_db_url(), destfile = rb_db_path(),
-                          overwrite = FALSE, sha256 = NULL,
+                          overwrite = FALSE, md5 = NULL, sha256 = NULL,
                           min_bytes = 1, quiet = FALSE) {
   if (file.exists(destfile) && !isTRUE(overwrite)) {
     return(normalizePath(destfile, winslash = "/", mustWork = TRUE))
@@ -49,9 +65,21 @@ rb_install_db <- function(url = rb_db_url(), destfile = rb_db_path(),
   on.exit(unlink(tmp), add = TRUE)
   rb_download_file(url, tmp, quiet = quiet)
 
+  if (identical(url, rb_default_yzfishdb_url())) {
+    release <- rb_yzfishdb_release()
+    if (is.null(md5)) md5 <- release$md5[[1]]
+    if (identical(min_bytes, 1)) min_bytes <- release$size_bytes[[1]]
+  }
+
   file_size <- file.info(tmp)$size
   if (is.na(file_size) || file_size < min_bytes) {
     stop("Downloaded YZFishDB file is empty or incomplete.", call. = FALSE)
+  }
+  if (!is.null(md5)) {
+    observed <- unname(tools::md5sum(tmp))
+    if (!identical(tolower(observed), tolower(md5))) {
+      stop("Downloaded YZFishDB md5 checksum does not match expected md5.", call. = FALSE)
+    }
   }
   if (!is.null(sha256)) {
     observed <- unname(tools::sha256sum(tmp))

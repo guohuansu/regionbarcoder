@@ -32,25 +32,29 @@ By default, `rb_connect()` uses the bundled demonstration database when present.
 During development in this project folder, it can also locate the full local
 `zenodo/data/YZFishDB.db` release.
 
-For production use, the full YZFishDB SQLite release should be archived outside
-the R package, for example on Zenodo or as a GitHub Release asset. Users can
-then download and cache it once:
+For production use, the full YZFishDB SQLite release is archived outside the R
+package on Zenodo: <https://doi.org/10.5281/zenodo.18155084>. Users can then
+download and cache it once:
 
 ```{r, eval = FALSE}
-rb_install_db(
-  url = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
-)
-
+rb_install_db()
 con <- rb_connect()
 ```
 
-If the release URL is configured in the environment, `rb_connect()` can install
-the database automatically when the local cache is missing:
+`rb_install_db()` uses the Zenodo-hosted `YZFishDB.db` file by default and checks
+the expected file size and md5 checksum. The release metadata used by the
+package can be inspected with:
 
 ```{r, eval = FALSE}
-Sys.setenv(
-  RB_YZFISHDB_URL = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
-)
+rb_yzfishdb_release()
+```
+
+If a mirror or future release URL is configured in the environment,
+`rb_connect()` can install the database automatically when the local cache is
+missing:
+
+```{r, eval = FALSE}
+Sys.setenv(RB_YZFISHDB_URL = "https://example.org/YZFishDB.db")
 
 con <- rb_connect(download = TRUE)
 ```

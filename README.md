@@ -21,27 +21,33 @@ The R package does not bundle the full YZFishDB database because the SQLite
 release is large. The recommended release model is:
 
 - install the R package from GitHub;
-- archive the full `YZFishDB.db` release on Zenodo or a GitHub Release;
+- archive the full `YZFishDB.db` release on Zenodo;
 - let `regionbarcoder` download and cache the database on first use.
 
-After the full database release URL is available, users can install it with:
+The current full YZFishDB release is archived at
+[https://doi.org/10.5281/zenodo.18155084](https://doi.org/10.5281/zenodo.18155084).
+Users can install and cache it with:
 
 ```r
 library(regionbarcoder)
 
-rb_install_db(
-  url = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
-)
-
+rb_install_db()
 con <- rb_connect()
 ```
 
-For a lab or manuscript workflow, the URL can also be configured once:
+The default URL points to the Zenodo-hosted `YZFishDB.db` file and verifies the
+downloaded file size and md5 checksum. Users can inspect the release metadata
+used by the package:
 
 ```r
-Sys.setenv(
-  RB_YZFISHDB_URL = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1"
-)
+rb_yzfishdb_release()
+```
+
+For a lab or manuscript workflow using a mirror or future release, the URL can
+also be configured once:
+
+```r
+Sys.setenv(RB_YZFISHDB_URL = "https://example.org/YZFishDB.db")
 
 con <- rb_connect(download = TRUE)
 ```

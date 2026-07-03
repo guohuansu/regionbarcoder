@@ -30,6 +30,7 @@
 \alias{rb_source_coverage}
 \alias{rb_tables}
 \alias{rb_taxonomy}
+\alias{rb_yzfishdb_release}
 \title{Audit, deploy, and export regional DNA reference databases}
 \description{
 The \pkg{regionbarcoder} package provides functions for connecting to regional
@@ -45,8 +46,9 @@ rb_db_url()
 rb_db_dir(create = TRUE)
 rb_db_path(filename = "YZFishDB.db")
 rb_db_available(path = rb_db_path())
+rb_yzfishdb_release()
 rb_install_db(url = rb_db_url(), destfile = rb_db_path(), overwrite = FALSE,
-  sha256 = NULL, min_bytes = 1, quiet = FALSE)
+  md5 = NULL, sha256 = NULL, min_bytes = 1, quiet = FALSE)
 rb_tables(con)
 rb_read_table(con, table)
 rb_get_sequences(con, species = NULL, genus = NULL, family = NULL,
@@ -86,12 +88,15 @@ data directory.}
 \item{download}{Whether \code{rb_connect()} should download the full YZFishDB
 database when the local cache is missing.}
 \item{url}{Download URL for the full YZFishDB SQLite release. If omitted,
-\code{rb_install_db()} reads \code{RB_YZFISHDB_URL} or the
-\code{regionbarcoder.yzfishdb_url} option.}
+\code{rb_install_db()} reads \code{RB_YZFISHDB_URL}, the
+\code{regionbarcoder.yzfishdb_url} option, or the default Zenodo release
+archived at \doi{10.5281/zenodo.18155084}.}
 \item{create}{Whether to create the user-level database cache directory.}
 \item{filename}{Database filename inside the cache directory.}
 \item{destfile}{Destination path for the downloaded YZFishDB database.}
 \item{overwrite}{Whether to replace an existing cached database.}
+\item{md5}{Optional expected MD5 checksum for the downloaded database. The
+default Zenodo release uses its archived checksum.}
 \item{sha256}{Optional expected SHA-256 checksum for the downloaded database.}
 \item{min_bytes}{Minimum accepted downloaded file size.}
 \item{quiet}{Whether to silence download progress messages.}
@@ -134,8 +139,9 @@ return output paths invisibly.
 }
 \examples{
 \dontrun{
-rb_install_db(url = "https://zenodo.org/records/<record-id>/files/YZFishDB.db?download=1")
+rb_install_db()
 con <- rb_connect()
+rb_yzfishdb_release()
 seqs <- rb_get_sequences(con, marker = "12S", occurrence = "native")
 rb_export_dada2(seqs, "yzfishdb_12s_dada2.fasta")
 rb_marker_coverage(con)

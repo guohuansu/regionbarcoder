@@ -48,7 +48,8 @@ rb_db_path(filename = "YZFishDB.db")
 rb_db_available(path = rb_db_path())
 rb_yzfishdb_release()
 rb_install_db(url = rb_db_url(), destfile = rb_db_path(), overwrite = FALSE,
-  md5 = NULL, sha256 = NULL, min_bytes = 1, quiet = FALSE)
+  md5 = NULL, sha256 = NULL, min_bytes = 1, quiet = FALSE,
+  timeout = 3600, retries = 3)
 rb_tables(con)
 rb_read_table(con, table)
 rb_get_sequences(con, species = NULL, genus = NULL, family = NULL,
@@ -100,6 +101,9 @@ default Zenodo release uses its archived checksum.}
 \item{sha256}{Optional expected SHA-256 checksum for the downloaded database.}
 \item{min_bytes}{Minimum accepted downloaded file size.}
 \item{quiet}{Whether to silence download progress messages.}
+\item{timeout}{Download timeout in seconds. The default is one hour because
+the archived YZFishDB SQLite file is approximately 606 MB.}
+\item{retries}{Number of download attempts before failing.}
 \item{con}{A DBI SQLite connection.}
 \item{table}{Name of a database table to read.}
 \item{species, genus, family}{Optional taxonomic filters.}
@@ -140,6 +144,8 @@ return output paths invisibly.
 \examples{
 \dontrun{
 rb_install_db()
+# Use a longer timeout on slow networks:
+rb_install_db(timeout = 7200, retries = 5)
 con <- rb_connect()
 rb_yzfishdb_release()
 seqs <- rb_get_sequences(con, marker = "12S", occurrence = "native")

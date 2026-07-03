@@ -43,7 +43,8 @@ rb_db_available <- function(path = rb_db_path()) {
 
 rb_install_db <- function(url = rb_db_url(), destfile = rb_db_path(),
                           overwrite = FALSE, md5 = NULL, sha256 = NULL,
-                          min_bytes = 1, quiet = FALSE) {
+                          min_bytes = 1, quiet = FALSE,
+                          timeout = 3600, retries = 3) {
   if (file.exists(destfile) && !isTRUE(overwrite)) {
     return(normalizePath(destfile, winslash = "/", mustWork = TRUE))
   }
@@ -63,7 +64,14 @@ rb_install_db <- function(url = rb_db_url(), destfile = rb_db_path(),
 
   tmp <- tempfile("YZFishDB-", fileext = ".db")
   on.exit(unlink(tmp), add = TRUE)
-  rb_download_file(url, tmp, quiet = quiet)
+  rb_download_with_retries(
+    url = url,
+    destfile = tmp,
+    quiet = quiet,
+    timeout = timeout,
+    retries = retries,
+    downloader = getOption("regionbarcoder.download_file", rb_download_file)
+  )
 
   if (identical(url, rb_default_yzfishdb_url())) {
     release <- rb_yzfishdb_release()
@@ -93,6 +101,43 @@ rb_install_db <- function(url = rb_db_url(), destfile = rb_db_path(),
     stop("Could not write YZFishDB database to: ", destfile, call. = FALSE)
   }
   normalizePath(destfile, winslash = "/", mustWork = TRUE)
+}
+
+rb_download_with_retries <- function(url, destfile, quiet, timeout, retries,
+                                     downloader) {
+  old_timeout <- getOption("timeout")
+  on.exit(options(timeout = old_timeout), add = TRUE)
+  options(timeout = max(as.numeric(timeout), as.numeric(old_timeout), na.rm = TRUE))
+
+  retries <- max(1L, as.integer(retries))
+  last_error <- NULL
+  for (attempt in seq_len(retries)) {
+    unlink(destfile)
+    result <- tryCatch(
+      {
+        downloader(url, destfile, quiet = quiet)
+        TRUE
+      },
+      error = function(e) {
+        last_error <<- conditionMessage(e)
+        FALSE
+      }
+    )
+    if (isTRUE(result) && file.exists(destfile)) {
+      return(invisible(destfile))
+    }
+    if (!quiet && attempt < retries) {
+      message("Download failed; retrying YZFishDB download (", attempt + 1L, "/", retries, ").")
+    }
+  }
+
+  stop(
+    "Could not download YZFishDB after ", retries, " attempt(s). ",
+    "For large files, try rb_install_db(timeout = 7200) or download ",
+    "YZFishDB.db manually from https://doi.org/10.5281/zenodo.18155084. ",
+    "Last error: ", last_error,
+    call. = FALSE
+  )
 }
 
 rb_download_file <- function(url, destfile, quiet = FALSE) {

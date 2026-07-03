@@ -43,6 +43,20 @@ used by the package:
 rb_yzfishdb_release()
 ```
 
+`YZFishDB.db` is about 606 MB. On slow networks, increase the timeout:
+
+```r
+rb_install_db(timeout = 7200, retries = 5)
+```
+
+If the Zenodo download is interrupted repeatedly, download `YZFishDB.db`
+manually from the DOI page and point the package to that file:
+
+```r
+Sys.setenv(RB_YZFISHDB_PATH = "path/to/YZFishDB.db")
+con <- rb_connect()
+```
+
 For a lab or manuscript workflow using a mirror or future release, the URL can
 also be configured once:
 

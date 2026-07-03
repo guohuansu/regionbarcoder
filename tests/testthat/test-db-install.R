@@ -55,6 +55,29 @@ test_that("rb_install_db can overwrite an existing cached database", {
   expect_identical(readLines(installed), "replacement payload")
 })
 
+test_that("rb_install_db temporarily increases timeout for large downloads", {
+  cache_dir <- tempfile("regionbarcoder-cache-")
+  dir.create(cache_dir)
+  withr::local_envvar(RB_YZFISHDB_CACHE_DIR = cache_dir)
+  withr::local_options(list(timeout = 60))
+
+  source_db <- tempfile("YZFishDB-source-", fileext = ".db")
+  writeLines("payload", source_db)
+
+  observed_timeout <- NULL
+  downloader <- function(url, destfile, quiet) {
+    observed_timeout <<- getOption("timeout")
+    file.copy(url, destfile, overwrite = TRUE)
+    invisible(destfile)
+  }
+  withr::local_options(list(regionbarcoder.download_file = downloader))
+
+  rb_install_db(url = source_db, quiet = TRUE, timeout = 3600)
+
+  expect_equal(observed_timeout, 3600)
+  expect_equal(getOption("timeout"), 60)
+})
+
 test_that("rb_install_db checks md5 when requested", {
   cache_dir <- tempfile("regionbarcoder-cache-")
   dir.create(cache_dir)

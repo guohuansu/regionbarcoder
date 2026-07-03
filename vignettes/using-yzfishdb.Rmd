@@ -49,6 +49,16 @@ package can be inspected with:
 rb_yzfishdb_release()
 ```
 
+The full SQLite file is about 606 MB. On slow networks, increase the timeout
+and retry count:
+
+```{r, eval = FALSE}
+rb_install_db(timeout = 7200, retries = 5)
+```
+
+If the download is interrupted repeatedly, users can download `YZFishDB.db`
+manually from the Zenodo DOI page and set `RB_YZFISHDB_PATH` to that local file.
+
 If a mirror or future release URL is configured in the environment,
 `rb_connect()` can install the database automatically when the local cache is
 missing:

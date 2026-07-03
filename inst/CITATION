@@ -1,0 +1,14 @@
+citHeader("To cite regionbarcoder in publications, please use:")
+
+citEntry(
+  entry = "Manual",
+  title = "regionbarcoder: Audit, Deploy, and Export Regional DNA Reference Databases",
+  author = personList(
+    person("Zi Xun", "Kua"),
+    person("Guohuan", "Su"),
+    person("Jun", "Xu")
+  ),
+  year = "2026",
+  note = "R package version 0.1.0",
+  textVersion = "Kua, Z. X., Su, G., and Xu, J. 2026. regionbarcoder: Audit, Deploy, and Export Regional DNA Reference Databases. R package version 0.1.0."
+)

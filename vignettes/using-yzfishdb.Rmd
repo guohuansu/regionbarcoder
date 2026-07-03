@@ -1,0 +1,138 @@
+---
+title: "Using YZFishDB with regionbarcoder"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using YZFishDB with regionbarcoder}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+This vignette demonstrates the first `regionbarcoder` workflow using YZFishDB,
+a curated mitochondrial DNA reference database for fishes of the Yangtze River
+Basin. The workflow connects to a SQLite release, inspects available tables,
+queries marker-specific references, exports pipeline-ready FASTA files, and
+summarizes database diagnostics.
+
+## Connect to a reference database
+
+```{r}
+library(regionbarcoder)
+
+con <- rb_connect()
+rb_tables(con)
+```
+
+By default, `rb_connect()` uses the bundled demonstration database when present.
+During development in this project folder, it can also locate the full local
+`zenodo/data/YZFishDB.db` release.
+
+## Query native 12S references
+
+```{r}
+native_12s <- rb_get_sequences(con, marker = "12S", occurrence = "native")
+nrow(native_12s)
+head(native_12s[, c("source", "sequence_id", "species", "seq_type", "family")])
+```
+
+The same interface can subset by species, genus, family, source, occurrence,
+and QC status. This makes database filtering explicit and reproducible.
+
+## Export pipeline-ready references
+
+```{r}
+example_refs <- head(native_12s, 5)
+
+dada2_file <- tempfile(fileext = ".fasta")
+qiime2_fasta <- tempfile(fileext = ".fasta")
+qiime2_tax <- tempfile(fileext = ".tsv")
+blast_file <- tempfile(fileext = ".fasta")
+usearch_file <- tempfile(fileext = ".fasta")
+
+rb_export_dada2(example_refs, dada2_file)
+rb_export_qiime2(example_refs, qiime2_fasta, qiime2_tax)
+rb_export_blastn(example_refs, blast_file)
+rb_export_usearch(example_refs, usearch_file)
+
+readLines(dada2_file, n = 4)
+readLines(qiime2_tax, n = 3)
+```
+
+These exports preserve a consistent seven-rank taxonomy string while adapting
+headers to DADA2, QIIME2, BLASTN, and USEARCH/VSEARCH conventions.
+
+## Assign eDNA ASVs against YZFishDB
+
+Most users will generate ASVs with DADA2 or QIIME2 first, then use
+`regionbarcoder` for taxonomic assignment against YZFishDB. The package supports
+a BLASTN workflow when BLAST+ is installed. For a dependency-free demonstration,
+the example below uses exact matching with one sequence taken from the reference
+database.
+
+```{r}
+example_asv <- tempfile(fileext = ".fasta")
+writeLines(c(">ASV_001", example_refs$sequence[[1]]), example_asv)
+
+assignment <- rb_assign_edna(
+  asv_fasta = example_asv,
+  con = con,
+  marker = "12S",
+  method = "exact"
+)
+
+assignment
+```
+
+If the user has an ASV count table, assignments can be converted to a
+sample-by-species community matrix.
+
+```{r}
+asv_counts <- data.frame(
+  asv_id = "ASV_001",
+  sample_a = 12,
+  sample_b = 3,
+  check.names = FALSE
+)
+
+rb_build_species_matrix(assignment, asv_counts)
+```
+
+## Summarize coverage and QC outcomes
+
+```{r}
+coverage <- rb_marker_coverage(con)
+head(coverage)
+
+sources <- rb_source_coverage(con)
+head(sources)
+
+qc <- rb_qc_summary(con)
+head(qc)
+```
+
+These summaries are designed for reporting the reference database before
+assignment results are interpreted.
+
+## Barcode gap and ambiguity tables
+
+```{r}
+barcode <- rb_barcode_gap(con)
+head(barcode)
+
+ambiguous <- rb_ambiguity(con)
+head(ambiguous)
+```
+
+The full YZFishDB release stores barcode gap and ambiguity outputs as external
+tables in the Zenodo data package. A future release can merge these directly
+into the SQLite release so `regionbarcoder` can report them without additional
+CSV imports.
+
+```{r}
+rb_disconnect(con)
+```

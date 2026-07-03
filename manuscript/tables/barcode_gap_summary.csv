@@ -1,0 +1,9 @@
+"marker","gap_exists","n_species_marker"
+"12S",FALSE,107
+"16S",FALSE,76
+"COI",FALSE,388
+"genome",FALSE,16
+"12S",TRUE,6
+"16S",TRUE,7
+"COI",TRUE,8
+"genome",TRUE,35

@@ -1,0 +1,12 @@
+^\.github$
+^\.git$
+^\.gitignore$
+^README\.Rmd$
+^.*\.Rproj$
+^\.Rproj\.user$
+^docs$
+^tmp$
+^temp$
+^r-lib$
+^.*\.Rcheck$
+^.*\.tar\.gz$

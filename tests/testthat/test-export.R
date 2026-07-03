@@ -1,0 +1,22 @@
+test_that("rb_export_dada2 writes tax headers", {
+  con <- rb_connect()
+  on.exit(rb_disconnect(con), add = TRUE)
+  seqs <- head(rb_get_sequences(con, marker = "12S"), 3)
+  out <- tempfile(fileext = ".fasta")
+  rb_export_dada2(seqs, out)
+  lines <- readLines(out)
+  expect_true(any(grepl(";tax=", lines, fixed = TRUE)))
+  expect_equal(sum(startsWith(lines, ">")), nrow(seqs))
+})
+
+test_that("rb_export_qiime2 writes fasta and taxonomy tsv", {
+  con <- rb_connect()
+  on.exit(rb_disconnect(con), add = TRUE)
+  seqs <- head(rb_get_sequences(con, marker = "COI"), 3)
+  fasta <- tempfile(fileext = ".fasta")
+  tax <- tempfile(fileext = ".tsv")
+  rb_export_qiime2(seqs, fasta, tax)
+  expect_true(file.exists(fasta))
+  expect_true(file.exists(tax))
+  expect_true(grepl("Feature ID", readLines(tax, n = 1), fixed = TRUE))
+})

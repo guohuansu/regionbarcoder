@@ -1,0 +1,20 @@
+Function,Purpose,Manuscript role
+rb_connect,Open a local or bundled regional reference database,Data access
+rb_tables,List database tables and row counts,Data access
+rb_get_sequences,Filter references by taxonomy marker source occurrence and QC,Query workflow
+rb_list_taxa,List taxon coverage at species genus family order or higher ranks,Query workflow
+rb_build_taxonomy_string,Create standardized seven-rank taxonomy strings,Taxonomic standardization
+rb_export_dada2,Write DADA2-compatible FASTA,Pipeline export
+rb_export_qiime2,Write QIIME2 FASTA and taxonomy TSV,Pipeline export
+rb_export_blastn,Write BLASTN-compatible FASTA,Pipeline export
+rb_export_usearch,Write USEARCH or VSEARCH SINTAX-style FASTA,Pipeline export
+rb_marker_coverage,Summarize marker coverage by taxonomic rank,Database diagnostics
+rb_source_coverage,Summarize source contributions by marker,Database diagnostics
+rb_qc_summary,Summarize sequence quality-control outcomes,Database diagnostics
+rb_barcode_gap,Read barcode gap metrics when available,Database diagnostics
+rb_ambiguity,Read manually curated ambiguous sequence records when available,Database diagnostics
+rb_read_barcode_gap,Read released barcode gap CSV outputs outside SQLite,Database diagnostics
+rb_read_ambiguity,Read released ambiguous-sequence curation CSV outputs outside SQLite,Database diagnostics
+rb_assign_edna,Assign ASV FASTA records against a regional reference database,ASV taxonomic assignment
+rb_score_assignments,Classify ASV hits as high low ambiguous or no match,ASV taxonomic assignment
+rb_build_species_matrix,Aggregate assigned ASVs into sample by species matrices,Community output

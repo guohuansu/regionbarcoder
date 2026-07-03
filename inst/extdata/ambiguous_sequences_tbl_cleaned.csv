@@ -1,0 +1,3 @@
+species,seq_type,sequence_id,sequence,source,unique_code,action,length,clean_seq,amb_count,gap_count,actual_nt_count
+Abbottina rivularis,COI,DEMO_AMB_001,ACTG,demo,AMB_DEMO_001,retain,4,ACTG,1,0,4
+Oryzias sinensis,12S,DEMO_AMB_002,AGTC,demo,AMB_DEMO_002,remove,4,AGTC,1,0,4

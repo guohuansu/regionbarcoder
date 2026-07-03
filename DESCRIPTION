@@ -1,0 +1,27 @@
+Package: regionbarcoder
+Title: Audit, Deploy, and Export Regional DNA Reference Databases
+Version: 0.1.0
+Authors@R: c(
+    person("Zi Xun", "Kua", email = "kuazixun@ihb.ac.cn", role = c("aut", "cre")),
+    person("Guohuan", "Su", role = "aut"),
+    person("Jun", "Xu", role = "aut"))
+Author: Zi Xun Kua [aut, cre], Guohuan Su [aut], Jun Xu [aut]
+Maintainer: Zi Xun Kua <kuazixun@ihb.ac.cn>
+Description: Provides tools to query, audit, export, assign amplicon sequence
+    variants, and report regional DNA reference databases for ecological
+    metabarcoding. The package supports local full YZFishDB SQLite releases and
+    enables Yangtze River Basin fish eDNA ASV assignment against YZFishDB.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 4.1)
+Imports:
+    DBI,
+    RSQLite
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr

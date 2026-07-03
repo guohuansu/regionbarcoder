@@ -3,7 +3,7 @@ Title: Audit, Deploy, and Export Regional DNA Reference Databases
 Version: 0.1.0
 Authors@R: c(
     person("Guohuan", "Su", email = "suguohuan@ihb.ac.cn",role = c("aut", "cre")),
-    person("Zi Xun", "Kua",  role = "aut")
+    person("Zi Xun", "Kua",  role = "aut"))
 Author: Guohuan Su [aut, cre], Zi Xun Kua [aut]
 Maintainer: Guohuan Su <suguohuan@ihb.ac.cn>
 Description: Provides tools to query, audit, export, assign amplicon sequence

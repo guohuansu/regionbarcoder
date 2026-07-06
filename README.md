@@ -88,7 +88,7 @@ library(regionbarcoder)
 con <- rb_connect()
 rb_tables(con)
 
-seqs <- rb_get_sequences(con, marker = "12S", occurrence = "native")
+seqs <- rb_get_sequences(con, marker = "12S", occurrence = "native", qc_flag = "pass", exact = TRUE)
 rb_export_dada2(seqs, "yzfishdb_12s_dada2.fasta")
 rb_marker_coverage(con)
 

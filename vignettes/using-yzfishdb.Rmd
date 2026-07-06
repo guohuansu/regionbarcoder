@@ -72,13 +72,13 @@ con <- rb_connect(download = TRUE)
 ## Query native 12S references
 
 ```{r}
-native_12s <- rb_get_sequences(con, marker = "12S", occurrence = "native")
+native_12s <- rb_get_sequences(con, marker = "12S", occurrence = "native", qc_flag = c("pass", "manual_review_needed"), exact = TRUE)
 nrow(native_12s)
 head(native_12s[, c("source", "sequence_id", "species", "seq_type", "family")])
 ```
 
 The same interface can subset by species, genus, family, source, occurrence,
-and QC status. This makes database filtering explicit and reproducible.
+and QC flag(s). This makes database filtering explicit and reproducible.
 
 ## Export pipeline-ready references
 

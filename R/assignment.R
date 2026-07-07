@@ -111,7 +111,7 @@ rb_parse_blast_tabular <- function(path) {
   x <- utils::read.table(path, sep = "\t", header = FALSE, quote = "",
                          col.names = cols, stringsAsFactors = FALSE)
   x$qcov <- x$length / x$qlen
-  x$scovs <- s$length / x$slen
+  x$scovs <- x$length / x$slen
   x$ccovs <- sqrt(x$qcov * x$scovs)
   x$bitscore_pb <- x$bitscore / x$length
   

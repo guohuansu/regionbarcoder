@@ -18,26 +18,38 @@ rb_score_assignments <- function(hits, min_identity = 99, min_coverage = 0.9,
   if (nrow(hits) == 0) {
     return(data.frame())
   }
-  rb_required_columns(hits, c("asv_id", "species", "pident", "qcov", "evalue", "bitscore"))
+  rb_required_columns(hits, c("asv_id", "species", "pident", "qcov", "scovs", "ccovs", "evalue", "bitscore", "bitscore_pb"))
   out <- lapply(split(hits, hits$asv_id), function(x) {
-    x <- x[order(-x$bitscore, -x$pident, -x$qcov, x$evalue), , drop = FALSE]
+    x <- x[order(-x$bitscore, -x$bitscore_pb, x$evalue, -x$ccovs, -x$pident), , drop = FALSE]
     best <- x[1, , drop = FALSE]
     tied <- x[
       x$bitscore >= best$bitscore[[1]] - tie_bitscore &
-        x$pident == best$pident[[1]] &
-        x$qcov == best$qcov[[1]],
+        x$bitscore_pb == best$bitscore_pb[[1]] &
+        x$evalue == best$evalue[[1]] &
+        x$ccovs == best$ccovs[[1]] &
+        x$pident == best$pident[[1]],
       ,
       drop = FALSE
     ]
     species <- sort(unique(tied$species))
-    status <- if (length(species) == 1) "unique" else "ambiguous"
-    confidence <- if (status == "ambiguous") {
+    all_metrics_identical <- length(species) > 1 &&
+      nrow(tied) > 1 &&
+      length(unique(paste(tied$bitscore, tied$bitscore_pb, tied$evalue, tied$ccovs, tied$pident))) == 1
+    if(length(species)==1){
+      status <- "unique"
+    } else if(all_metrics_identical){
+      status <- "check_full_tie"
+    } else {
+      status <- "ambiguous"
+    }
+    confidence <- if (status %in% c("ambiguous", "check_full_tie")) {
       "ambiguous"
-    } else if (best$pident[[1]] >= min_identity && best$qcov[[1]] >= min_coverage) {
+    } else if (best$pident[[1]] >= min_identity && best$ccovs[[1]] >= min_coverage) {
       "high"
     } else {
       "low"
     }
+    ties_out <- if(length(species)>1) paste(species, collapse = "|") else NA_character_
     data.frame(
       asv_id = best$asv_id[[1]],
       species = paste(species, collapse = "|"),
@@ -45,11 +57,15 @@ rb_score_assignments <- function(hits, min_identity = 99, min_coverage = 0.9,
       family = paste(sort(unique(tied$family)), collapse = "|"),
       pident = best$pident[[1]],
       qcov = best$qcov[[1]],
+      scovs = best$scovs[[1]],
+      ccovs = best$ccovs[[1]],
       evalue = best$evalue[[1]],
       bitscore = best$bitscore[[1]],
+      bitscore_pb = best$bitscore_pb[[1]],
       n_best_species = length(species),
       assignment_status = status,
       confidence = confidence,
+      tie_taxa = ties_out,
       stringsAsFactors = FALSE
     )
   })
@@ -62,6 +78,7 @@ rb_exact_hits <- function(asvs, refs) {
     idx <- which(ref_seq == asvs$sequence[[i]])
     if (length(idx) == 0) return(NULL)
     x <- refs[idx, , drop = FALSE]
+    seq_len_val <- nchar(asvs$sequence[[i]])
     data.frame(
       asv_id = asvs$asv_id[[i]],
       species = x$species,
@@ -69,8 +86,11 @@ rb_exact_hits <- function(asvs, refs) {
       family = x$family,
       pident = 100,
       qcov = 1,
+      scovs = 1,
+      ccovs = 1,
       evalue = 0,
-      bitscore = nchar(asvs$sequence[[i]]),
+      bitscore = seq_len_val,
+      bitscore_pb = 1,
       stringsAsFactors = FALSE
     )
   })
@@ -91,6 +111,10 @@ rb_parse_blast_tabular <- function(path) {
   x <- utils::read.table(path, sep = "\t", header = FALSE, quote = "",
                          col.names = cols, stringsAsFactors = FALSE)
   x$qcov <- x$length / x$qlen
+  x$scovs <- s$length / x$slen
+  x$ccovs <- sqrt(x$qcov * x$scovs)
+  x$bitscore_pb <- x$bitscore / x$length
+  
   x
 }
 
@@ -128,7 +152,7 @@ rb_assign_blastn <- function(asv_fasta, refs, out_dir, min_identity, min_coverag
 
 rb_assign_edna <- function(asv_fasta, con = NULL, db_path = NULL, marker = NULL,
                            method = c("blastn", "exact"), min_identity = 99,
-                           min_coverage = 0.9, max_target_seqs = 20,
+                           min_coverage = 0.9, max_target_seqs = 100,
                            out_dir = tempfile("regionbarcoder_assign_"),
                            blastn = "blastn", makeblastdb = "makeblastdb") {
   method <- match.arg(method)
@@ -165,11 +189,15 @@ rb_assign_edna <- function(asv_fasta, con = NULL, db_path = NULL, marker = NULL,
       family = NA_character_,
       pident = NA_real_,
       qcov = NA_real_,
+      scovs = NA_real_,
+      ccovs = NA_real_,
       evalue = NA_real_,
       bitscore = NA_real_,
+      bitscore_pb = NA_real_,
       n_best_species = 0L,
       assignment_status = "no_match",
       confidence = "none",
+      tie_taxa = NA_character_,
       stringsAsFactors = FALSE
     )
     scored <- rbind(scored, no_hits)

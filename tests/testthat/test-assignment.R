@@ -21,14 +21,17 @@ test_that("rb_score_assignments reports ambiguous best species", {
     family = c("Family", "Family"),
     pident = c(100, 100),
     qcov = c(1, 1),
+    scovs = c(1, 1),
+    ccovs = c(1, 1),
     evalue = c(1e-50, 1e-50),
     bitscore = c(200, 200),
+    bitscore_pb = c(1, 1),
     stringsAsFactors = FALSE
   )
 
   scored <- rb_score_assignments(hits)
 
-  expect_equal(scored$assignment_status, "ambiguous")
+  expect_equal(scored$assignment_status, "check_full_tie")
   expect_equal(scored$confidence, "ambiguous")
   expect_equal(scored$species, "Species a|Species b")
 })

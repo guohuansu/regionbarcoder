@@ -118,8 +118,7 @@ rb_parse_blast_tabular <- function(path) {
   x
 }
 
-rb_assign_blastn <- function(asv_fasta, refs, out_dir, min_identity, min_coverage,
-                             max_target_seqs, blastn, makeblastdb) {
+rb_assign_blastn <- function(asv_fasta, refs, out_dir, min_identity, min_coverage, max_target_seqs = 100, blastn, makeblastdb) {
   if (!nzchar(Sys.which(blastn))) {
     stop("BLASTN executable not found: ", blastn, ". Install BLAST+ or use method = 'exact'.", call. = FALSE)
   }
@@ -131,16 +130,16 @@ rb_assign_blastn <- function(asv_fasta, refs, out_dir, min_identity, min_coverag
   db_prefix <- file.path(out_dir, "regionbarcoder_reference")
   blast_out <- file.path(out_dir, "regionbarcoder_blast.tsv")
   rb_write_fasta(paste0(">", refs$unique_code), refs$sequence, ref_fasta)
-  system2(makeblastdb, c("-in", ref_fasta, "-dbtype", "nucl", "-out", db_prefix),
+  system2(makeblastdb, c("-in", shQuote(ref_fasta), "-dbtype", "nucl", "-out", shQuote(db_prefix)),
           stdout = FALSE, stderr = FALSE)
   outfmt <- "6 qseqid sseqid pident length qlen slen evalue bitscore mismatch gapopen qstart qend sstart send"
   system2(blastn, c(
-    "-query", asv_fasta,
-    "-db", db_prefix,
-    "-outfmt", outfmt,
+    "-query", shQuote(asv_fasta),
+    "-db", shQuote(db_prefix),
+    "-outfmt", shQuote(outfmt),
     "-max_target_seqs", as.character(max_target_seqs),
     "-perc_identity", as.character(min_identity),
-    "-out", blast_out
+    "-out", shQuote(blast_out)
   ), stdout = FALSE, stderr = FALSE)
   hits <- rb_parse_blast_tabular(blast_out)
   if (nrow(hits) == 0) return(data.frame())

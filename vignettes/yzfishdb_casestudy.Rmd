@@ -1,0 +1,231 @@
+---
+title: "Case study: Taxonomic assignment of Yangtze River eDNA using YZFishDB"
+author: "Kua Zi Xun"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+ %\VignetteIndexEntry{Case study: Yangtze River eDNA}
+ %\VignetteEngine{knitr::rmarkdown}
+ %\VignetteEncoding{UTF-8}
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, tidy = TRUE, collapse = TRUE, comment = "#>")
+Sys.setenv(RB_YZFISHDB_PATH = "C:/Zi Xun/IHB/Writing/kzx_etal_refdb/zenodo/data/YZFishDB.db")
+```
+
+# Introduction
+
+This vignette demonstrates the complete workflow of the `regionbarcoder` package using a real-world environmental DNA (eDNA) dataset from the Yangtze River basin. We will walk through auditing the `YZFishDB` reference database, benchmarking assignment methods (Exact vs. BLASTn), resolving taxonomic ties, and generating a final species-by-site ecological matrix.
+
+*Note: This case study utilizes the `YZFishDB.db` reference database and unpublished ASV data. To run this code locally, ensure you update the file paths in the setup chunk to match your system.*
+
+# 1. Setup and Configuration
+
+First, we load the required libraries and define the paths to our reference database, ASV data, and BLAST+ executables.
+
+```{r setup, message=FALSE, warning=FALSE}
+library(regionbarcoder)
+library(tidyverse)
+library(Biostrings)
+
+# --- USER CONFIGURATION: Update these paths for your local machine ---
+db_path       <- "path/to/YZFishDB.db"
+asv_path      <- "path/to/novogene_202425_edna.rds"
+site_path     <- "path/to/yz_site_info_tbl_2025.csv"
+blastn_path   <- "path/to/blastn.exe"
+makeblastdb_p <- "path/to/makeblastdb.exe"
+
+# Output directories
+dir.create("data", showWarnings = FALSE)
+asv_fasta     <- "data/novogene_asvs.fasta"
+blast_out_dir <- "data/regionbarcoder_blastout"
+```
+
+# 2. Auditing the Reference Database
+
+Before assigning sequences, it is crucial to understand the composition of the reference database. `regionbarcoder` provides built-in functions to audit taxonomic and marker coverage dynamically.
+
+```{r audit-db}
+con <- rb_connect(db_path)
+
+# 1. Audit QC Flags
+# (Note: yzfishdb_final primarily contains 'pass' sequences)
+qc_summary <- rb_qc_summary(con)
+print(qc_summary)
+
+# 2. Compare Taxonomic Coverage (12S vs. Full Database)
+species_12s <- rb_list_taxa(con, rank = "species", marker = "12S")
+species_all <- rb_list_taxa(con, rank = "species")
+
+cat("Species with 12S data:", nrow(species_12s), "\n")
+cat("Species with any marker data:", nrow(species_all), "\n")
+
+# 3. Source Coverage
+source_cov <- rb_source_coverage(con)
+print(head(source_cov))
+```
+
+# Visualizing Source Coverage
+
+We can visualize the provenance of the reference sequences to understand the composition of the database across different markers.
+
+```{r}
+source_cov_plot_data <- source_cov %>%
+  mutate(Source = factor(source, 
+                         levels = c("mitofish", "bold", "ncbi", "midori", "local", "mitofish|ncbi"),
+                         labels = c("MitoFish", "BOLD", "NCBI", "MIDORI2", "Local", "MitoFish & NCBI")))
+
+p1 <- ggplot(source_cov_plot_data, aes(x = Source, y = n_sequences, fill = seq_type)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1", name = "Marker") +
+  labs(y = "Sequence Count", title = "Absolute Sequence Counts by Source") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p2 <- ggplot(source_cov_plot_data, aes(x = Source, y = n_sequences, fill = seq_type)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_brewer(palette = "Set1", name = "Marker") +
+  labs(y = "Proportion", title = "Proportion of Markers by Source") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Combine and save
+ggpubr::ggarrange(p1, p2, common.legend = TRUE, ncol = 2)
+```
+
+# 3. Preparing ASV Data
+
+The package requires ASV sequences in a FASTA file and a corresponding count table. We extract these from a standard DADA2 sequence table (`seqtab`).
+
+```{r}
+seqtab <- readRDS(asv_path)
+
+# Extract sequences and assign standardized ASV IDs
+asv_seqs <- colnames(seqtab)
+asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
+names(asv_seqs) <- asv_ids
+
+# Write to FASTA
+writeXStringSet(DNAStringSet(asv_seqs), filepath = asv_fasta)
+
+# Create ASV count table (Samples x ASVs)
+asv_table <- as.data.frame(t(seqtab))
+asv_table$asv_id <- asv_ids
+asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
+```
+
+# 4. Taxonomic Assignment: Exact vs. BLASTn
+
+A key feature of `regionbarcoder` is the ability to easily benchmark different assignment methods. Here, we compare the dependency-free exact matching method against the robust BLASTn method.
+
+```{r}
+# Run EXACT Match
+t_exact <- system.time({
+  res_exact <- rb_assign_edna(
+    asv_fasta = asv_fasta, con = con, marker = "12S", 
+    method = "exact", out_dir = blast_out_dir
+  )
+})
+
+# Run BLASTn
+t_blast <- system.time({
+  res_blast <- rb_assign_edna(
+    asv_fasta = asv_fasta, con = con, marker = "12S", 
+    method = "blastn", out_dir = blast_out_dir,
+    blastn = blastn_path, makeblastdb = makeblastdb_p
+  )
+})
+
+# Compare Results
+comparison <- data.frame(
+  Method = c("Exact", "BLASTn"),
+  Time_seconds = c(t_exact[3], t_blast[3]),
+  ASVs_Assigned = c(
+    sum(res_exact$assignment_status != "no_match"),
+    sum(res_blast$assignment_status != "no_match")
+  ),
+  Success_Rate_Pct = c(
+    round(mean(res_exact$assignment_status != "no_match") * 100, 2),
+    round(mean(res_blast$assignment_status != "no_match") * 100, 2)
+  )
+)
+print(comparison)
+```
+
+*Note: As expected, Exact matching is significantly faster but yields a lower success rate due to its strict 100% identity requirement. BLASTn is the recommended method for complex environmental samples.*
+
+# 5. Resolving Ambiguities (Manual Curation)
+
+The upgraded BLASTn pipeline uses advanced metrics (`ccovs`, `bitscore_pb`) and automatically flags perfect ties as "`check_full_tie`". This allows researchers to easily export and manually curate ambiguous ASVs based on biogeography or taxonomy.
+
+```{r}
+# Inspect Ties
+ties <- res_blast %>% filter(assignment_status == "check_full_tie")
+cat("Number of ASVs requiring manual curation:", nrow(ties), "\n")
+
+if(nrow(ties) > 0) {
+  print(arrange(ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
+}
+
+# --- Mock Manual Curation ---
+# Example: ASV_00208 is a tie between Macrognathus aculeatus and Sinobdella sinensis.
+# Based on literature, S. sinensis is the correct assignment for this region.
+if("ASV_00208" %in% ties$asv_id) {
+  res_blast$species[res_blast$asv_id == "ASV_00208"] <- "Sinobdella sinensis"
+  res_blast$assignment_status[res_blast$asv_id == "ASV_00208"] <- "unique"
+  res_blast$tie_taxa[res_blast$asv_id == "ASV_00208"] <- NA_character_
+}
+```
+
+# 6. Building the Ecological Matrix
+
+Finally, we aggregate the curated ASV counts into a species-by-sample matrix, dropping any remaining ambiguous or unassigned ASVs.
+
+```{r}
+species_sample <- rb_build_species_matrix(
+  assignment = res_blast,
+  asv_table = asv_table,
+  include_ambiguous = FALSE, 
+  unassigned = FALSE         
+)
+
+cat("Final ecological matrix dimensions (Species x Samples):", dim(species_sample), "\n")
+head(species_sample)
+```
+
+## Mapping to Site Metadata and Visualization
+
+To visualize the data, we map the raw sample IDs to their corresponding site IDs and generate a heatmap.
+
+```{r}
+site_info <- read.csv(site_path) %>% mutate(sample_id = toupper(sample_id))
+
+# Pivot and join with site metadata
+species_matrix_long <- species_sample %>%
+  as.data.frame() %>%
+  rownames_to_column("species") %>%
+  pivot_longer(-species, names_to = "sample_id", values_to = "abundance") %>%
+  mutate(sample_id = toupper(sample_id)) %>%
+  inner_join(dplyr::select(site_info, site_id, sample_id), by = "sample_id") %>%
+  filter(abundance > 0)
+
+# Pivot back to wide format for heatmap
+species_matrix <- species_matrix_long %>%
+  pivot_wider(names_from = site_id, values_from = abundance, values_fill = 0) %>%
+  column_to_rownames('species') %>%
+  as.matrix()
+
+# Generate and save high-resolution heatmap
+png("figures/species_site_heatmap.png", width = 11, height = 10, units = "in", res = 400)
+heatmap(species_matrix, Colv = NA, Rowv = NA, scale = 'column', 
+        revC = TRUE, xlab = "Sites", cexRow = 0.5, cexCol = 0.7,
+        main = "Species Abundance Across Yangtze River Sites")
+dev.off()
+```
+
+# Conclusion
+
+This case study demonstrates how `regionbarcoder` streamlines the eDNA taxonomic assignment workflow. By dynamically querying the `YZFishDB` database, utilizing robust alignment metrics (`ccovs`), and providing a standardized framework for tie curation (`check_full_tie`), the package ensures reproducible, transparent, and bioinformatically rigorous species assignments.
+
+```{r}
+rb_disconnect(con)
+```

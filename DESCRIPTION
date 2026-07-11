@@ -23,6 +23,9 @@ Suggests:
     testthat (>= 3.0.0),
     withr,
     knitr,
-    rmarkdown
+    rmarkdown,
+    tidyverse,
+    Biostrings,
+    ggpubr
 Config/testthat/edition: 3
 VignetteBuilder: knitr

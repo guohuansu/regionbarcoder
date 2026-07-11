@@ -128,7 +128,7 @@ p2 <- ggplot(source_cov_plot_data, aes(x = Source, y = n_sequences, fill = seq_t
 ggpubr::ggarrange(p1, p2, common.legend = TRUE, ncol = 2)
 ```
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval=TRUE, echo=FALSE, out.width="80%"}
 knitr::include_graphics("source_cov.png")
 ```
 
@@ -312,7 +312,7 @@ heatmap(species_matrix, Colv = NA, Rowv = NA, scale = 'column',
         main = "Species Abundance Across Yangtze River Sites")
 ```
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval=TRUE, echo=FALSE, out.width="80%"}
 knitr::include_graphics("species_site_heatmap.png")
 ```
 

@@ -1,6 +1,5 @@
 ---
 title: "Case study: Taxonomic assignment of Yangtze River eDNA using YZFishDB"
-author: "Kua Zi Xun"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -160,7 +159,7 @@ asv_path <- "yz_12s_r1.rds"
 asv_fasta <- "data/"
 
 seqtab <- readRDS(asv_path)
-
+seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz", "ZTPSN21IP270-LBT_R1.fq.gz"),]
 # Extract sequences and assign standardized ASV IDs
 asv_seqs <- colnames(seqtab)
 asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
@@ -178,6 +177,7 @@ asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
 ```{r eval=TRUE, include=FALSE}
 asv_path <- system.file("extdata","yz_12s_r1.rds", package = "regionbarcoder")
 seqtab <- readRDS(asv_path)
+seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz", "ZTPSN21IP270-LBT_R1.fq.gz"),]
 asv_seqs <- colnames(seqtab)
 asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
 names(asv_seqs) <- asv_ids
@@ -188,20 +188,37 @@ asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
 
 # 4. Taxonomic Assignment: Exact vs. BLASTn
 
-A key feature of `regionbarcoder` is the ability to easily benchmark different assignment methods. Here, we compare the dependency-free exact matching method against the robust BLASTn method.
+A key feature of `regionbarcoder` is the ability to easily benchmark different assignment methods. Here, we compare the dependency-free exact matching method against the robust BLASTn method, using both the full YzFishDB reference database and the 12S subset of the database.
 
 ```{r}
-# Run EXACT Match
+# Full Database
+## Run EXACT Match
 t_exact <- system.time({
   res_exact <- rb_assign_edna(
+    asv_fasta = asv_fasta, con = con, 
+    method = "exact", out_dir = blast_out_dir
+  )
+})
+## Run BLASTn
+t_blast <- system.time({
+  res_blast <- rb_assign_edna(
+    asv_fasta = asv_fasta, con = con, 
+    method = "blastn", out_dir = blast_out_dir,
+    blastn = blastn_path, makeblastdb = makeblastdb_path
+  )
+})
+
+# 12S Database subset
+t_exact_12 <- system.time({
+  res_exact_12 <- rb_assign_edna(
     asv_fasta = asv_fasta, con = con, marker = "12S", 
     method = "exact", out_dir = blast_out_dir
   )
 })
 
 # Run BLASTn
-t_blast <- system.time({
-  res_blast <- rb_assign_edna(
+t_blast_12 <- system.time({
+  res_blast_12 <- rb_assign_edna(
     asv_fasta = asv_fasta, con = con, marker = "12S", 
     method = "blastn", out_dir = blast_out_dir,
     blastn = blastn_path, makeblastdb = makeblastdb_p
@@ -209,6 +226,7 @@ t_blast <- system.time({
 })
 
 # Compare Results
+## Full database
 comparison <- data.frame(
   Method = c("Exact", "BLASTn"),
   Time_seconds = c(t_exact[3], t_blast[3]),
@@ -219,9 +237,27 @@ comparison <- data.frame(
   Success_Rate_Pct = c(
     round(mean(res_exact$assignment_status != "no_match") * 100, 2),
     round(mean(res_blast$assignment_status != "no_match") * 100, 2)
-  )
+  ),
+  Database = c("Full","Full")
 )
-print(comparison)
+## 12S database subset
+comparison_12 <- data.frame(
+  Method = c("Exact", "BLASTn"),
+  Time_seconds = c(t_exact_12[3], t_blast_12[3]),
+  ASVs_Assigned = c(
+    sum(res_exact_12$assignment_status != "no_match"),
+    sum(res_blast_12$assignment_status != "no_match")
+  ),
+  Success_Rate_Pct = c(
+    round(mean(res_exact_12$assignment_status != "no_match") * 100, 2),
+    round(mean(res_blast_12$assignment_status != "no_match") * 100, 2)
+  ),
+  Database = c("12S", "12S")
+)
+
+comparison_df <- rbind(comparison, comparison_12)
+
+print(comparison_df)
 ```
 
 ```{r eval=TRUE, echo=FALSE}

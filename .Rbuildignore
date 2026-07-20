@@ -12,3 +12,5 @@
 ^.*\.tar\.gz$
 ^doc$
 ^Meta$
+^_pkgdown\.yml$
+^pkgdown$

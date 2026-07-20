@@ -266,6 +266,24 @@ output$comparison
 
 *Note: As expected, Exact matching is significantly faster but yields a lower success rate due to its strict 100% identity requirement. BLASTn is the recommended method for complex environmental samples.*
 
+Comparison between the assigned ASVs also reveal that using the full database assigned `r nrow(output$assign_compare)` additional ASVs. However these assignments were all flagged as low quality matches (`low`), emphasizing the importance of selecting the most appropriate reference database for taxonomic assignment.
+
+```{r}
+assign_12 <- filter(res_blast_12, assignment_status == "unique")
+assign_full <- filter(res_blast, assignment_status == "unique")
+
+assign_compare_df <- full_join(dplyr::select(assign_full, asv_id, species, confidence), dplyr::select(assign_12, asv_id, species, confidence), by = 'asv_id', suffix = c("_f","_12")) |>
+  mutate(taxa_diff = species_f == species_12,
+         conf_diff = confidence_f == confidence_12) |>
+  replace_na(list(taxa_diff = FALSE, conf_diff = FALSE)) |>
+  filter(!taxa_diff | !conf_diff)
+print(dplyr::select(assign_compare_df, -taxa_diff, -conf_diff))
+```
+
+```{r eval=TRUE, echo=FALSE}
+output$assign_compare |> dplyr::select(-taxa_diff, -conf_diff)
+```
+
 # 5. Resolving Ambiguities (Manual Curation)
 
 The upgraded BLASTn pipeline uses advanced metrics (`ccovs`, `bitscore_pb`) and automatically flags perfect ties as "`check_full_tie`". This allows researchers to easily export and manually curate ambiguous ASVs based on biogeography or taxonomy.
@@ -273,14 +291,14 @@ The upgraded BLASTn pipeline uses advanced metrics (`ccovs`, `bitscore_pb`) and 
 Example: `ASV_07559`, `ASV_08335`, `ASV_09885` are a ties between *Gymnodiptychus pachycheilus* and *Schizopygopsis kialingensis*. Based on literature, *G. pachycheilus* is the correct assignment for this region.
 
 ```{r}
-ties <- res_blast %>% filter(assignment_status == "check_full_tie")
+ties <- res_blast_12 %>% filter(assignment_status == "check_full_tie")
 cat("Number of ASVs requiring manual curation:", nrow(ties), "\n")
 
 if(nrow(ties) > 0) {
   print(arrange(ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
 }
 
-res_blast <- res_blast |>
+res_blast_12 <- res_blast_12 |>
   mutate(species = case_when(asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "Gymnodiptychus pachycheilus",
                              TRUE ~ species),
          assignment_status = case_when(asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "unique",
@@ -314,7 +332,7 @@ cat("Final ecological matrix dimensions (Species x Samples):", dim(species_sampl
 
 ```{r eval=TRUE, echo=TRUE}
 species_sample <- rb_build_species_matrix(
-  assignment = output$res_blast,
+  assignment = output$res_blast_12,
   asv_table = asv_table,
   include_ambiguous = FALSE, 
   unassigned = FALSE         

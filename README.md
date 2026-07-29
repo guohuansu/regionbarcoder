@@ -109,3 +109,5 @@ When BLAST+ is not installed, `method = "exact"` provides a lightweight exact se
 The package is designed to support manuscript-scale reproducibility: users can inspect marker coverage, source contributions, quality-control outcomes, and pipeline-specific exports before interpreting eDNA assignments.
 
 A more detailed example workflow using `YZFishDB` for assigning a Yangtze River ASV dataset is available as a vignette (`../vignettes/yzfishdb_casestudy.Rmd`).
+
+For questions or bug reports, please use the [GitHub Issues page](https://github.com/guohuansu/regionbarcoder/issues).

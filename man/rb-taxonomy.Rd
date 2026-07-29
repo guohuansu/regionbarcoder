@@ -30,10 +30,13 @@ tax <- rb_taxonomy(con)
 head(tax)
 
 # 2. Filter for a specific species using multiple QC flags (partial matching)
-salmo_tax <- rb_taxonomy(con, species = "Cyprinus carpio", qc_flag = c("pass", "manual_review_needed"))
+salmo_tax <- rb_taxonomy(con, species = "Cyprinus carpio", 
+                         qc_flag = c("pass", "manual_review_needed"))
 
 # 3. Filter using strict/exact QC flag matching
-strict_tax <- rb_taxonomy(con, species = "Cyprinus carpio", qc_flag = c("pass", "manual_review_needed"), exact = TRUE)
+strict_tax <- rb_taxonomy(con, species = "Cyprinus carpio", 
+                          qc_flag = c("pass", "manual_review_needed"), 
+                          exact = TRUE)
 
 # 4. Build taxonomy strings for downstream formatting
 plain_strings <- rb_build_taxonomy_string(head(tax), style = "plain")

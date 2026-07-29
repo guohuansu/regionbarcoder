@@ -10,10 +10,13 @@ quality-control state, and sequence length.
 }
 \usage{
 rb_get_sequences(con, species = NULL, genus = NULL, family = NULL,
-  marker = NULL, source = NULL, occurrence = NULL, qc_flag = "pass", exact = FALSE)
-rb_list_taxa(con, rank = "species", occurrence = NULL, marker = NULL, qc_flag = "pass", exact = FALSE)
+                 marker = NULL, source = NULL, occurrence = NULL, 
+                 qc_flag = "pass", exact = FALSE)
+rb_list_taxa(con, rank = "species", occurrence = NULL, 
+             marker = NULL, qc_flag = "pass", exact = FALSE)
 rb_filter_reference(data, marker = NULL, source = NULL, occurrence = NULL,
-  min_length = NULL, max_length = NULL, qc_flag = "pass", exact = FALSE)
+                    min_length = NULL, max_length = NULL, qc_flag = "pass",
+                    exact = FALSE)
 }
 \arguments{
 \item{con}{A DBI SQLite connection returned by \code{\link{rb_connect}}.}

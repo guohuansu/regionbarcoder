@@ -19,8 +19,8 @@ rb_export_usearch(data, fasta_file)
 }
 \arguments{
 \item{data}{A reference sequence data frame returned by
-\code{\link{rb_get_sequences}} or \code{\link{rb_filter_reference}}. It must
-contain a nucleotide sequence column and seven-rank taxonomy columns.}
+\code{\link{rb_get_sequences}} or \code{\link{rb_filter_reference}}. 
+It must contain a nucleotide sequence column and seven-rank taxonomy columns.}
 \item{file, fasta_file}{Output FASTA file path.}
 \item{format}{Export format used by the wrapper \code{rb_export_fasta()}.}
 \item{taxonomy_file}{Output taxonomy TSV path required for QIIME2 export.}

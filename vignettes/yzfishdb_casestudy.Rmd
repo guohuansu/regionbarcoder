@@ -9,7 +9,7 @@ vignette: >
 ---
 
 ```{r include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE, tidy = TRUE, collapse = TRUE, comment = "#>", fig.path = "casestudy-")
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, collapse = TRUE, comment = "#>", fig.path = "casestudy-")
 library(regionbarcoder)
 library(tidyverse)
 output_path <- system.file("extdata", "case_study_outputs.rds", package = "regionbarcoder")
@@ -107,22 +107,28 @@ head(output$source_cov)
 We can visualize the provenance of the reference sequences to understand the composition of the database across different markers.
 
 ```{r}
-source_cov_plot_data <- source_cov %>%
-  mutate(Source = factor(source, 
-                         levels = c("mitofish", "bold", "ncbi", "midori", "local", "mitofish|ncbi"),
-                         labels = c("MitoFish", "BOLD", "NCBI", "MIDORI2", "Local", "MitoFish & NCBI")))
+source_cov_plot_data <- source_cov |>
+  mutate(Source = factor(
+    source,
+    levels = c("mitofish", "bold", "ncbi", "midori", "local", "mitofish|ncbi"),
+    labels = c("MitoFish", "BOLD", "NCBI", "MIDORI2", "Local", "MitoFish & NCBI")
+  ))
 
-p1 <- ggplot(source_cov_plot_data, aes(x = Source, y = n_sequences, fill = seq_type)) +
+p1 <- ggplot(source_cov_plot_data,
+             aes(x = Source, y = n_sequences, fill = seq_type)) +
   geom_bar(stat = "identity") +
   scale_fill_brewer(palette = "Set1", name = "Marker") +
   labs(y = "Sequence Count", title = "Absolute Sequence Counts by Source") +
-  theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-p2 <- ggplot(source_cov_plot_data, aes(x = Source, y = n_sequences, fill = seq_type)) +
+p2 <- ggplot(source_cov_plot_data,
+             aes(x = Source, y = n_sequences, fill = seq_type)) +
   geom_bar(stat = "identity", position = "fill") +
   scale_fill_brewer(palette = "Set1", name = "Marker") +
   labs(y = "Proportion", title = "Proportion of Markers by Source") +
-  theme_classic() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggpubr::ggarrange(p1, p2, common.legend = TRUE, ncol = 2)
 ```
@@ -141,7 +147,7 @@ Currently the barcode gap metrics are imported as a separate CSV. Here we assess
 gap_metrics <- rb_read_barcode_gap(marker = '12S')
 
 gap_summary <- gap_metrics |>
-  mutate(gap_median = median_inter>median_intra) |>
+  mutate(gap_median = median_inter > median_intra) |>
   group_by(gap_median) |>
   summarise(n_species = n_distinct(species))
 
@@ -159,7 +165,9 @@ asv_path <- "yz_12s_r1.rds"
 asv_fasta <- "data/"
 
 seqtab <- readRDS(asv_path)
-seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz", "ZTPSN21IP270-LBT_R1.fq.gz"),]
+seqtab <- seqtab[!rownames(seqtab) %in%
+                   c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz",
+                     "ZTPSN21IP270-LBT_R1.fq.gz"), ]
 # Extract sequences and assign standardized ASV IDs
 asv_seqs <- colnames(seqtab)
 asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
@@ -175,9 +183,10 @@ asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
 ```
 
 ```{r eval=TRUE, include=FALSE}
-asv_path <- system.file("extdata","yz_12s_r1.rds", package = "regionbarcoder")
+asv_path <- system.file("extdata", "yz_12s_r1.rds", package = "regionbarcoder")
 seqtab <- readRDS(asv_path)
-seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz", "ZTPSN21IP270-LBT_R1.fq.gz"),]
+seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz",
+                                          "ZTPSN21IP270-LBT_R1.fq.gz"), ]
 asv_seqs <- colnames(seqtab)
 asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
 names(asv_seqs) <- asv_ids
@@ -195,33 +204,45 @@ A key feature of `regionbarcoder` is the ability to easily benchmark different a
 ## Run EXACT Match
 t_exact <- system.time({
   res_exact <- rb_assign_edna(
-    asv_fasta = asv_fasta, con = con, 
-    method = "exact", out_dir = blast_out_dir
+    asv_fasta = asv_fasta,
+    con = con,
+    method = "exact",
+    out_dir = blast_out_dir
   )
 })
 ## Run BLASTn
 t_blast <- system.time({
   res_blast <- rb_assign_edna(
-    asv_fasta = asv_fasta, con = con, 
-    method = "blastn", out_dir = blast_out_dir,
-    blastn = blastn_path, makeblastdb = makeblastdb_path
+    asv_fasta = asv_fasta,
+    con = con,
+    method = "blastn",
+    out_dir = blast_out_dir,
+    blastn = blastn_path,
+    makeblastdb = makeblastdb_path
   )
 })
 
 # 12S Database subset
 t_exact_12 <- system.time({
   res_exact_12 <- rb_assign_edna(
-    asv_fasta = asv_fasta, con = con, marker = "12S", 
-    method = "exact", out_dir = blast_out_dir
+    asv_fasta = asv_fasta,
+    con = con,
+    marker = "12S",
+    method = "exact",
+    out_dir = blast_out_dir
   )
 })
 
 # Run BLASTn
 t_blast_12 <- system.time({
   res_blast_12 <- rb_assign_edna(
-    asv_fasta = asv_fasta, con = con, marker = "12S", 
-    method = "blastn", out_dir = blast_out_dir,
-    blastn = blastn_path, makeblastdb = makeblastdb_p
+    asv_fasta = asv_fasta,
+    con = con,
+    marker = "12S",
+    method = "blastn",
+    out_dir = blast_out_dir,
+    blastn = blastn_path,
+    makeblastdb = makeblastdb_p
   )
 })
 
@@ -234,11 +255,12 @@ comparison <- data.frame(
     sum(res_exact$assignment_status != "no_match"),
     sum(res_blast$assignment_status != "no_match")
   ),
-  Success_Rate_Pct = c(
-    round(mean(res_exact$assignment_status != "no_match") * 100, 2),
-    round(mean(res_blast$assignment_status != "no_match") * 100, 2)
-  ),
-  Database = c("Full","Full")
+  Success_Rate_Pct = c(round(
+    mean(res_exact$assignment_status != "no_match") * 100, 2
+  ), round(
+    mean(res_blast$assignment_status != "no_match") * 100, 2
+  )),
+  Database = c("Full", "Full")
 )
 ## 12S database subset
 comparison_12 <- data.frame(
@@ -248,10 +270,11 @@ comparison_12 <- data.frame(
     sum(res_exact_12$assignment_status != "no_match"),
     sum(res_blast_12$assignment_status != "no_match")
   ),
-  Success_Rate_Pct = c(
-    round(mean(res_exact_12$assignment_status != "no_match") * 100, 2),
-    round(mean(res_blast_12$assignment_status != "no_match") * 100, 2)
-  ),
+  Success_Rate_Pct = c(round(
+    mean(res_exact_12$assignment_status != "no_match") * 100, 2
+  ), round(
+    mean(res_blast_12$assignment_status != "no_match") * 100, 2
+  )),
   Database = c("12S", "12S")
 )
 
@@ -272,7 +295,12 @@ Comparison between the assigned ASVs also reveal that using the full database as
 assign_12 <- filter(res_blast_12, assignment_status == "unique")
 assign_full <- filter(res_blast, assignment_status == "unique")
 
-assign_compare_df <- full_join(dplyr::select(assign_full, asv_id, species, confidence), dplyr::select(assign_12, asv_id, species, confidence), by = 'asv_id', suffix = c("_f","_12")) |>
+assign_compare_df <- full_join(
+  dplyr::select(assign_full, asv_id, species, confidence),
+  dplyr::select(assign_12, asv_id, species, confidence),
+  by = 'asv_id',
+  suffix = c("_f", "_12")
+) |>
   mutate(taxa_diff = species_f == species_12,
          conf_diff = confidence_f == confidence_12) |>
   replace_na(list(taxa_diff = FALSE, conf_diff = FALSE)) |>
@@ -291,26 +319,36 @@ The upgraded BLASTn pipeline uses advanced metrics (`ccovs`, `bitscore_pb`) and 
 Example: `ASV_07559`, `ASV_08335`, `ASV_09885` are a ties between *Gymnodiptychus pachycheilus* and *Schizopygopsis kialingensis*. Based on literature, *G. pachycheilus* is the correct assignment for this region.
 
 ```{r}
-ties <- res_blast_12 %>% filter(assignment_status == "check_full_tie")
+ties <- res_blast_12 |> filter(assignment_status == "check_full_tie")
 cat("Number of ASVs requiring manual curation:", nrow(ties), "\n")
 
-if(nrow(ties) > 0) {
+if (nrow(ties) > 0) {
   print(arrange(ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
 }
 
 res_blast_12 <- res_blast_12 |>
-  mutate(species = case_when(asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "Gymnodiptychus pachycheilus",
-                             TRUE ~ species),
-         assignment_status = case_when(asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "unique",
-                                       TRUE ~ assignment_status),
-         tie_taxa = case_when(asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ NA_character_,
-                              TRUE ~ tie_taxa))
+  mutate(
+    species = case_when(
+      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "Gymnodiptychus pachycheilus",
+      TRUE ~ species
+    ),
+    assignment_status = case_when(
+      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "unique",
+      TRUE ~ assignment_status
+    ),
+    tie_taxa = case_when(
+      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ NA_character_,
+      TRUE ~ tie_taxa
+    )
+  )
 ```
 
 ```{r echo=TRUE, eval=TRUE}
-cat("Number of ASVs requiring manual curation:", nrow(output$ties), "\n")
+cat("Number of ASVs requiring manual curation:",
+    nrow(output$ties),
+    "\n")
 
-if(nrow(output$ties) > 0) {
+if (nrow(output$ties) > 0) {
   print(arrange(output$ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
 }
 ```
@@ -323,11 +361,13 @@ Finally, we aggregate the curated ASV counts into a species-by-sample matrix, dr
 species_sample <- rb_build_species_matrix(
   assignment = res_blast,
   asv_table = asv_table,
-  include_ambiguous = FALSE, 
-  unassigned = FALSE         
+  include_ambiguous = FALSE,
+  unassigned = FALSE
 )
 
-cat("Final ecological matrix dimensions (Species x Samples):", dim(species_sample), "\n")
+cat("Final ecological matrix dimensions (Species x Samples):",
+    dim(species_sample),
+    "\n")
 ```
 
 ```{r eval=TRUE, echo=TRUE}
@@ -350,20 +390,30 @@ site_path <- "yz_edna_env_tbl.rds"
 site_info <- readRDS(site_path)
 
 # Pivot and join with site metadata
-species_matrix <- species_sample %>%
-  pivot_longer(-species, names_to = "file", values_to = "abundance") %>%
-  inner_join(dplyr::select(site_info, file, site, site_id), by = "file") %>%
-  arrange(site_id) %>%
-  dplyr::select(species, site_id, abundance) %>%
-  filter(abundance > 0) %>%
-  pivot_wider(names_from = site_id, values_from = abundance, values_fill = 0) %>%
-  arrange(species) %>%
-  column_to_rownames('species') %>%
+species_matrix <- species_sample |>
+  pivot_longer(-species, names_to = "file", values_to = "abundance") |>
+  inner_join(dplyr::select(site_info, file, site, site_id), by = "file") |>
+  arrange(site_id) |>
+  dplyr::select(species, site_id, abundance) |>
+  filter(abundance > 0) |>
+  pivot_wider(names_from = site_id,
+              values_from = abundance,
+              values_fill = 0) |>
+  arrange(species) |>
+  column_to_rownames('species') |>
   as.matrix()
 
-heatmap(species_matrix, Colv = NA, Rowv = NA, scale = 'column', 
-        revC = TRUE, xlab = "Sites", cexRow = 0.5, cexCol = 0.7,
-        main = "Species Abundance Across Yangtze River Sites")
+heatmap(
+  species_matrix,
+  Colv = NA,
+  Rowv = NA,
+  scale = 'column',
+  revC = TRUE,
+  xlab = "Sites",
+  cexRow = 0.5,
+  cexCol = 0.7,
+  main = "Species Abundance Across Yangtze River Sites"
+)
 ```
 
 ```{r eval=TRUE, echo=FALSE, out.width="80%"}

@@ -58,7 +58,7 @@ The workflow proceeds through six stages:
 
   6. **Ecological matrix**: Construct a species-by-sample read-count matrix for downstream community-ecology analyses.
 
-*Note on reproducibility. Because the QIIME2 benchmarking step requires a Linux environment (Windows Subsystem for Linux; WSL), its results are loaded conditionally. The vignette completes successfully with or without the QIIME2 output present.*
+> Note: Because the QIIME2 benchmarking step requires a Linux environment (Windows Subsystem for Linux; WSL), its results are loaded conditionally. The vignette completes successfully with or without the QIIME2 output present.
 
 # Prerequisites
 
@@ -196,7 +196,7 @@ qc_summary <- rb_qc_summary(con, table = table_name)
 print(qc_summary)
 ```
 
-#> Note: Because this database consists of references from a published local reference database, all sequences were assigned `qc_flag=="pass"` by default.
+> Note: Because this database consists of references from a published local reference database, all sequences were assigned `qc_flag=="pass"` by default.
 
 ## 3d. Exporting Pipeline-Ready References
 
@@ -428,7 +428,7 @@ cd /mnt/c/Users/<you>/.../inst/extdata/benchmark
 bash run_qiime2.sh
 ```
 
-*Note: The bash script needs to be completed before Section 6*
+> Note: The bash script needs to be completed before Section 6
 
 # 6. Performance evaluation
 

@@ -14,7 +14,7 @@ vignette: >
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE, collapse = TRUE, warning = FALSE, message = FALSE, comment = "#>", fig.path = "casestudy-")
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, collapse = TRUE, warning = FALSE, message = FALSE, comment = "#>", tidy.opts = list(width.cutoff=120))
 library(regionbarcoder)
 library(tidyverse)
 library(Biostrings)

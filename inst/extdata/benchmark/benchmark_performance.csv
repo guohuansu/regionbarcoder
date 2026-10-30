@@ -1,0 +1,5 @@
+"Method","Train_Time_s","Classify_Time_s","Total_ASVs","Assigned","Correct","Correct_unique","Correct_tie","Incorrect","Unassigned","Precision","Sensitivity","FDR"
+"RB-Exact",0,0.24,832,208,208,204,4,0,624,1,0.25,0
+"RB-BLASTn",0,9.76,832,832,832,816,16,0,0,1,1,0
+"SINTAX",0,2.85,832,832,824,824,0,8,0,0.9904,0.9904,0
+"QIIME2-NB",48,42,832,832,824,824,0,8,0,0.9904,0.9904,0

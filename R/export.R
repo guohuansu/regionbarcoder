@@ -57,7 +57,13 @@ rb_export_qiime2 <- function(data, fasta_file, taxonomy_file) {
 
 rb_export_usearch <- function(data, fasta_file) {
   rb_required_columns(data, c("sequence", "kingdom", "phylum", "class", "order", "family", "genus", "species"))
-  tax <- rb_build_taxonomy_string(data, style = "rank_prefix")
-  headers <- paste0(">", rb_safe_id(data), " tax=", tax)
+  tax <- paste0("d:", data$kingdom,",",
+                "p:", data$phylum,",",
+                "c:", data$class,",",
+                "o:", data$order,",",
+                "f:", data$family,",",
+                "g:", data$genus,",",
+                "s:", data$species,",")
+  headers <- paste0(">", rb_safe_id(data), ";tax=", tax)
   rb_write_fasta(headers, data$sequence, fasta_file)
 }

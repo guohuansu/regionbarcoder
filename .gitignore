@@ -29,3 +29,5 @@ test_qiime2_taxonomy.tsv
 doc/
 Meta/
 manuscript/
+/doc/
+/Meta/

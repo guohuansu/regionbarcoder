@@ -46,24 +46,25 @@ rb_sql_conditions <- function(con, species = NULL, genus = NULL, family = NULL,
 
 rb_get_sequences <- function(con, species = NULL, genus = NULL, family = NULL,
                              marker = NULL, source = NULL, occurrence = NULL,
-                             qc_flag = "pass", exact = FALSE) {
+                             qc_flag = "pass", exact = FALSE, table = "yzfishdb_final") {
   conditions <- rb_sql_conditions(
     con, species = species, genus = genus, family = family,
     marker = marker, source = source, occurrence = occurrence, qc_flag = qc_flag, exact = exact
   )
-  sql <- "select * from yzfishdb_final"
+  sql <- paste("select * from", rb_quote_table(con, table))
   if (length(conditions) > 0) {
     sql <- paste(sql, "where", paste(conditions, collapse = " and "))
   }
   DBI::dbGetQuery(con, sql)
 }
 
-rb_list_taxa <- function(con, rank = "species", occurrence = NULL, marker = NULL, qc_flag = "pass", exact = FALSE) {
+rb_list_taxa <- function(con, rank = "species", occurrence = NULL, marker = NULL, qc_flag = "pass", exact = FALSE, table = "yzfishdb_final") {
   valid <- c("kingdom", "phylum", "class", "order", "family", "genus", "species")
   if (!rank %in% valid) stop("Unsupported rank: ", rank, call. = FALSE)
+  tbl <- rb_quote_table(con, table)
   rank_sql <- as.character(DBI::dbQuoteIdentifier(con, rank))
   conditions <- rb_sql_conditions(con, occurrence = occurrence, marker = marker, qc_flag = qc_flag, exact = exact)
-  sql <- paste0("select ", rank_sql, " as ", rank, ", count(*) as n_sequences from yzfishdb_final")
+  sql <- paste0("select ", rank_sql, " as ", rank, ", count(*) as n_sequences from ", tbl)
   if (length(conditions) > 0) {
     sql <- paste(sql, "where", paste(conditions, collapse = " and "))
   }
@@ -100,11 +101,12 @@ rb_filter_reference <- function(data, marker = NULL, source = NULL, occurrence =
   out
 }
 
-rb_taxonomy <- function(con, species = NULL, qc_flag = "pass", exact = FALSE) {
+rb_taxonomy <- function(con, species = NULL, qc_flag = "pass", exact = FALSE, table = "yzfishdb_final") {
   conditions <- rb_sql_conditions(con, species = species, qc_flag = qc_flag, exact = exact)
+  tbl <- rb_quote_table(con, table)
   sql <- paste(
     "select distinct kingdom, phylum, class, `order`, family, genus, species, occurrence, habitat",
-    "from yzfishdb_final"
+    "from ", tbl
   )
   if (length(conditions) > 0) sql <- paste(sql, "where", paste(conditions, collapse = " and "))
   DBI::dbGetQuery(con, sql)

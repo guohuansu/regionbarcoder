@@ -95,3 +95,24 @@ rb_default_data_file <- function(filename) {
   if (file.exists(local)) return(local)
   ""
 }
+
+rb_resolve_table <- function(table = NULL) {
+  if (is.null(table) || !nzchar(table)) {
+    "yzfishdb_final"
+  } else {
+    table
+  }
+}
+
+rb_quote_table <- function(con, table = NULL) {
+  table <- rb_resolve_table(table)
+  available <- DBI::dbListTables(con)
+  if (!table %in% available) {
+    stop(
+      "Table '", table, "' not found in database. Available tables: ",
+      paste(available, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  as.character(DBI::dbQuoteIdentifier(con, table))
+}

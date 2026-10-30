@@ -1,0 +1,680 @@
+---
+title: "Case study: From flat-file reference to ecological matrix"
+subtitle: "Benchmarking taxonomic assignment with a Plecoptera mock community"
+author: "Zi Xun Kua"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+ %\VignetteIndexEntry{Case study: Plecoptera mock-community benchmark}
+ %\VignetteEngine{knitr::rmarkdown}
+ %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, collapse = TRUE, warning = FALSE, message = FALSE, comment = "#>", fig.path = "casestudy-")
+library(regionbarcoder)
+library(tidyverse)
+library(Biostrings)
+
+taxa_table_path <- "../data-raw/plecoptera_metadata.csv"
+fasta_path <- "../data-raw/plecoptera_sequences.fasta"
+
+# Output locations
+db_path <- "../inst/extdata/plecoptera_swiss.db"
+table_name <- "reference_final"
+bench_dir <- "../inst/extdata/benchmark"
+dir.create(bench_dir, recursive = TRUE, showWarnings = FALSE)
+sintax_out <- file.path(bench_dir, "sintax_res.tsv")
+perf_summary <- read.csv(file.path(bench_dir, "benchmark_performance.csv"))
+perf_by_error <- read.csv(file.path(bench_dir, "benchmark_by_error_rate.csv"))
+res_rb_blast <- read.csv(file.path(bench_dir, "plecop_blastn_res.csv"))
+curation_log <- read.csv(file.path(bench_dir, "curation_audit.csv"))
+res_blast_curated <- rb_apply_curation(res_rb_blast, curation_log)
+
+# Assignment thresholds (justified by supplementary sensitivity analysis)
+blastn_identity <- 97 # percent identity for BLASTn
+sintax_cutoff <- 0.8 # bootstrap confidence for SINTAX
+qiime_confidence <- 0.7 # posterior probability for QIIME2
+```
+
+# Overview
+
+This vignette demonstrates the complete `regionbarcoder` workflow using an independent regional reference database: "The comprehensive COI barcode library for Swiss Plecoptera (stoneflies)" published by Vuataz et al. (2024, *Scientific Reports* 14:6322, doi:10.1038/s41598-024-56930-5).
+
+The workflow proceeds through six stages:
+
+  1. **Conversion**: import a standardized reference FASTA + metadata CSV into a `regionbarcoder`-compatible SQLite database.
+
+  2. **Auditing**: inspect taxonomic coverage, marker representation, source composition, and QC status using the diagnostic functions.
+
+  3. **Mock community generation**: Create an *in silico* mock community with known ground-truth taxonomy and simulated sequencing errors (0-2%) following the validation framework of Braukmann et al. (2019; *Molecular Ecology Resources* 19:711-727).
+
+  4. **Benchmarking**: Compare four taxonomic assignment methods, (i) exact matching, (ii) BLASTn (97 % identity), (iii) SINTAX via VSEARCH (0.8 bootstrap), and (iv) QIIME2 Naive Bayes (0.7 posterior probability), against the known ground truth.
+
+  5. **Tie-breaking**: Resolve ambiguous assignments interactively to produce a reproducible curation audit log.
+
+  6. **Ecological matrix**: Construct a species-by-sample read-count matrix for downstream community-ecology analyses.
+
+*Note on reproducibility. Because the QIIME2 benchmarking step requires a Linux environment (Windows Subsystem for Linux; WSL), its results are loaded conditionally. The vignette completes successfully with or without the QIIME2 output present.*
+
+# Prerequisites
+
+Apart from `regionbarcoder`, this vignette also uses functions from `tidyverse` and `Biostrings` to facilitate data carpentry.
+
+Three external software are required to fully reproduce this case study: 
+  
+  (i) BLAST+ (required for `blastn` taxonomic assignment and `makeblastdb` for generating BLASTn reference databases)
+  
+  (ii) VSEARCH (for SINTAX taxonomic assignment in Section 5c)
+  
+  (iii) QIIME2 (for QIIME2 Naive Bayes Classification in Section 5d)
+
+```{r}
+# Required packages (installed automatically with regionbarcoder)
+library(regionbarcoder)
+
+# Additional packages used in this vignette
+# install.packages (c("tidyverse", "Biostrings", "ggplot2"))
+library(tidyverse)
+library(Biostrings)
+
+# External tools (must be installed separately):
+#  - BLAST+ (https://ftp.ncbi.nlm.gov/blast/executables/blast+/LATEST/)
+#  - VSEARCH (https://github.com/torognes/vsearch/releases)
+#  - QIIME2 via WSL (see Section 5d)
+```
+
+# 1. Configuration and input files
+
+The reference sequences and metadata are obtained from Vuataz et al. (2024) Supplementary Table S2. Sequences with valid GenBank accessions are downloaded using `ape::read.GenBank()`. This produces two flat files:
+
+  - `data-raw/plecoptera_sequences.fasta`: multi-FASTA with headers matching the `unique_code` column.
+  - `data-raw/plecoptera_metadata.csv`: the full Vuataz metadata table enriched with standardized columns (`species`, `marker`, `source`, `qc_flag`, `unique_code`).
+  
+```{r}
+# Paths (adjust to your working directory)
+taxa_table_path <- "data-raw/plecoptera_metadata.csv"
+fasta_path <- "data-raw/plecoptera_sequences.fasta"
+
+# Output locations
+db_path <- "inst/extdata/plecoptera_swiss.db"
+table_name <- "reference_final"
+bench_dir <- "inst/extdata/benchmark"
+dir.create(bench_dir, recursive = TRUE, showWarnings = FALSE)
+
+# External tool paths (Windows examples; adjust for your system)
+blastn_path <- "C:/Program Files/NCBI/blast-2.17.0+/bin/blastn.exe"
+makeblastdb_path <- "C:/Program Files/NCBI/blast-2.17.0+/bin/makeblastdb.exe"
+vsearch_exe <- "C:/Tools/vsearch-2.32.0-win-x86_64/bin/vsearch.exe"
+
+# Assignment thresholds (justified by supplementary sensitivity analysis)
+blastn_identity <- 97   # percent identity for BLASTn
+sintax_cutoff <- 0.8  # bootstrap confidence for SINTAX
+qiime_confidence <- 0.7  # posterior probability for QIIME2
+```
+
+# 2. Building the SQLite reference database
+
+`rb_create_db()` converts flat files into the relational schema required by `regionbarcoder`. It merges the FASTA sequences with the metadata table on the `join_by` column, standardizes required fields (`species`, `sequence`, `seq_type`, `source`, `qc_flag`, `unique_code`), fills missing taxonomic ranks with `NA`, and writes the result to a single SQLite file.
+
+```{r eval=TRUE}
+# Enrich the metadata with higher-rank taxonomy
+taxa <- read.csv(taxa_table_path, stringsAsFactors = FALSE, check.names = FALSE)
+
+taxa$species <- taxa$`Morphological ID 2023`
+taxa$family <- taxa$Family
+taxa$genus <- sapply(strsplit(trimws(taxa$species), "\\s+"), `[`, 1)
+taxa$genus[trimws(taxa$species) %in% c("sp.", "")] <- NA_character_
+taxa$kingdom <- "Metazoa"
+taxa$phylum <- "Arthropoda"
+taxa$class <- "Insecta"
+taxa$order <- "Plecoptera"
+
+head(taxa)
+```
+
+```{r eval=TRUE}
+# Drop the redundant sequence column (the FASTA is the canonical source)
+taxa_for_db <- taxa[, setdiff(names(taxa), "sequence"), drop = FALSE] |>
+  select(unique_code, marker, species, genus, family, order, class, phylum, kingdom, qc_flag, source)
+
+head(taxa_for_db)
+```
+
+```{r}
+clean_meta <- file.path(bench_dir, "meta_for_db.csv")
+write.csv(taxa_for_db, clean_meta, row.names = FALSE)
+```
+
+```{r}
+# Convert to SQLite
+rb_create_db(
+  fasta_path = fasta_path,
+  metadata_path = clean_meta,
+  db_path = db_path,
+  join_by = "unique_code",
+  marker = "COI",
+  source = "Vuataz_et_al_2024",
+  table_name = table_name,
+  overwrite = TRUE
+)
+```
+
+# 3. Auditing the reference database
+
+Before assigning any query sequences, `regionbarcoder` allows comprehensive auditing of the reference pool. This is the key advantage of a relational database over a static FASTA: users can inspect coverage, quality, and source composition before committing to an assignment strategy. In addition, by standardizing these workflows, these steps can be easily reproduced and archived.
+
+```{r eval=TRUE}
+con <- rb_connect(db_path)
+```
+
+
+## 3a. Taxonomic and marker coverage
+
+```{r eval=TRUE}
+species_list <- rb_list_taxa(con, rank = "species", table = table_name)
+marker_cov <- rb_marker_coverage(con, table = table_name)
+
+cat("Species in database:", nrow(species_list), "\n")
+cat("Total sequences:", sum(marker_cov$n_sequences), "\n")
+```
+
+## 3b. Source composition
+
+```{r eval=TRUE}
+source_cov <- rb_source_coverage(con, table = table_name)
+head(source_cov)
+```
+
+## 3c. QC summary
+
+```{r eval=TRUE}
+qc_summary <- rb_qc_summary(con, table = table_name)
+print(qc_summary)
+```
+
+#> Note: Because this database consists of references from a published local reference database, all sequences were assigned `qc_flag=="pass"` by default.
+
+## 3d. Exporting Pipeline-Ready References
+
+Beyond taxonomic assignment, `regionbarcoder` can format the user-defined selection of the reference database for use in other popular bioinformatics pipelines.
+
+```{r}
+refs <- rb_get_sequences(con, table = table_name, marker = "COI")
+
+rb_export_dada2(refs, "refs_coi_dada2.fasta")
+rb_export_qiime2(refs, "refs_coi_qiime2.fasta", "refs_coi_qiime2_tax.tsv")
+rb_export_blastn(refs, "refs_coi_blastn.fasta")
+rb_export_usearch(refs, "refs_coi_usearch.fasta")
+```
+
+These exports preserve a consistent seven-rank taxonomy string while adapting headers to DADA2, QIIME2, BLASTN, and USEARCH/VSEARCH conventions.
+
+# 4. Generating the *in silico* mock community
+
+Following Braukmann et al. (2019), we construct a mock community with known ground-truth taxonomy. For each species in the reference database, we select the longest sequence and introduce random nucleotide substitutions at four divergence levels (0 %, 0.5 %, 1 %, 2 %) to simulate Illumina sequencing errors and natural intraspecific variation.
+
+```{r eval=TRUE}
+# One representative (longest) sequence per species
+refs <- rb_get_sequences(con, table = table_name, marker = "COI")
+
+refs_one <- refs |>
+  filter(!is.na(species) & trimws(species) != "" & trimws(species) != "sp.") |>
+  mutate(seq_len = nchar(sequence)) |>
+  group_by(species) |>
+  slice_max(seq_len, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+cat("Reference species for mock community:", nrow(refs_one), "\n")
+
+# Mutation parameters
+error_rates <- c(0.00, 0.005, 0.01, 0.02)
+n_reps <- 2
+bases <- c("A", "C", "G", "T")
+
+mutate_seq <- function(seq_str, err) {
+  if (err == 0) return(seq_str)
+  chars <- unlist(strsplit(toupper(seq_str), ""))
+  n_mut <- round(length(chars) * err)
+  if (n_mut == 0) return(seq_str)
+  for (p in sample.int(length(chars), n_mut)) {
+    if (chars[p] %in% bases) chars[p] <- sample(setdiff(bases, chars[p]), 1)
+  }
+  paste(chars, collapse = "")
+}
+
+set.seed(324)
+mock_rows <- list()
+truth_rows <- list()
+k <- 0
+for (i in seq_len(nrow(refs_one))) {
+  sp <- refs_one$species[i]
+  seq <- refs_one$sequence[i]
+  for (err in error_rates) {
+    for (rep in seq_len(n_reps)) {
+      k <- k + 1
+      asv_id <- sprintf("Mock-%04d-%04.1fpct-r%d", i, err * 100, rep)
+      mock_rows[[k]] <- data.frame(asv_id = asv_id,
+                                    sequence = mutate_seq(seq, err),
+                                    stringsAsFactors = FALSE)
+      truth_rows[[k]] <- data.frame(asv_id = asv_id, true_species = sp,
+                                    error_rate = err, stringsAsFactors = FALSE)
+    }
+  }
+}
+mock_df <- bind_rows(mock_rows)
+truth_df <- bind_rows(truth_rows)
+cat("Mock ASVs generated:", nrow(mock_df), "\n")
+head(mock_df)
+```
+
+```{r}
+mock_fasta <- file.path(bench_dir, "mock_asvs.fasta")
+writeLines(c(rbind(paste0(">", mock_df$asv_id), mock_df$sequence)), mock_fasta)
+```
+
+# 5. Benchmarking taxonomic assignment methods
+
+We compare the performances of four assignment strategies spanning the major algorithmic classes commonly used in contemporary eDNA metabarcoding: 1) Exact matching (string matching), 2) BLASTn (local alignment), 3) SINTAX (*k*-mer heuristic), 4) QIIME2 (Naive Bayes). 
+
+## 5a. Exact matching
+
+Exact matching is a built-in taxonomic assignment option for `rb_assign_edna()` which utilizes simple string matching for assignment.
+
+```{r}
+cat("Running regionbarcoder (Exact)...\n")
+t_rb_exact <- system.time({
+  res_rb_exact <- rb_assign_edna(
+    mock_fasta, con = con, table = table_name,
+    marker = "COI", method = "exact"
+  )
+})
+pred_rb_exact <- res_rb_exact |> select(asv_id, species)
+```
+
+## 5b. BLASTn
+
+`rb_assign_edna()` also allows users to opt for the BLASTn local alignment taxonomic assignment method as a wrapper which relies on the BLAST+ suite (`blastn` and `makeblastdb`).
+
+```{r}
+cat("Running regionbarcoder (BLASTn, ", blastn_identity, "% identity)...\n", sep = "")
+t_rb_blast <- system.time({
+  res_rb_blast <- rb_assign_edna(
+    mock_fasta, con = con, table = table_name,
+    marker = "COI", method = "blastn",
+    min_identity = blastn_identity,
+    min_coverage = 0.9,
+    blastn      = blastn_path,
+    makeblastdb = makeblastdb_path
+  )
+})
+pred_rb_blast <- res_rb_blast |> select(asv_id, species)
+```
+
+## 5c. SINTAX
+
+SINTAX is *k*-mer heuristic taxonomic assignment algorithm that is often used through USEARCH/VSEARCH. `regionbarcoder` allows users to export the selected reference database as FASTA files, with pre-defined templates for commonly used bioinformatic pipelines (BLASTn, USEARCH/VSEARCH, QIIME2, DADA2). 
+
+We use the `rb_export_usearch()` to export a formatted reference database before passing the sintax command through `system2()`. 
+
+```{r}
+# Define file path for the database
+sintax_ref <- file.path(bench_dir, "sintax_ref.fasta")
+rb_export_usearch(refs, sintax_ref)
+
+cat("Running VSEARCH SINTAX...\n")
+sintax_out <- file.path(bench_dir, "sintax_res.tsv")
+
+t_sintax <- system.time({
+  system2(vsearch_exe, c(
+    "--sintax", shQuote(mock_fasta),
+    "--db", shQuote(sintax_ref),
+    "--tabbedout", shQuote(sintax_out),
+    "--sintax_cutoff", "0.8",
+    "--threads", "4"
+  ), stdout = FALSE, stderr = FALSE)
+})
+```
+
+The SINTAX assignment results can then be parsed to extract the information we want for subsequent comparisons.
+
+```{r eval=TRUE}
+# PARSE SINTAX output
+sintax_res <- read.table(sintax_out, sep = "\t", header = FALSE,
+                         stringsAsFactors = FALSE, quote = "",
+                         col.names = c("asv_id", "tax", "strand", "score"))
+
+sintax_res$species <- sub(".*s:([^,\\(]+).*", "\\1", sintax_res$tax, perl = TRUE)
+sintax_res$species <- trimws(sintax_res$species)
+sintax_res$species[sintax_res$species == "" |
+                     grepl("^unassigned", sintax_res$species, ignore.case = TRUE) |
+                     is.na(sintax_res$tax)] <- NA_character_
+
+pred_sintax <- sintax_res |> select(asv_id, species)
+cat("SINTAX assigned:", sum(!is.na(pred_sintax$species)), "of", nrow(pred_sintax), "\n")
+```
+
+## 5d. QIIME2 Naive Bayes
+
+QIIME2 includes several options for taxonomic assignment methods based on Naive Bayes classification (Further details available on https://amplicon-docs.qiime2.org/en/stable/). Here we use the basic Naive Bayes classification algorithm by training a custom classifier and applying it for taxonomic assignment. 
+
+Because QIIME2 does **not** run natively on Windows OS, QIIME2 methods are run through WSL. Here, we generate a bash script which is then run externally through a WSL terminal with a QIIME2 environment.
+
+```{r}
+to_wsl_path <- function(win_path) {
+  p <- normalizePath(win_path, winslash = "/", mustWork = FALSE)
+  sub("^([A-Za-z]):/", "/mnt/\\L\\1/", p, perl = TRUE)
+}
+
+wsl_bench <- to_wsl_path(bench_dir)
+wsl_q2_fa <- to_wsl_path(file.path(bench_dir, "q2_ref.fasta"))
+wsl_q2_tx <- to_wsl_path(file.path(bench_dir, "q2_taxonomy.tsv"))
+wsl_mock <- to_wsl_path(mock_fasta)
+wsl_conda <- "/path/to/miniforge3/etc/profile.d/conda.sh" # set the path to your conda.sh
+qiime_env <- "rachis-qiime2-2026.10" # qiime2 env name
+
+# Export QIIME2 reference files using the package function
+q2_ref_fasta <- file.path(bench_dir, "q2_ref.fasta")
+q2_tax_tsv <- file.path(bench_dir, "q2_taxonomy.tsv")
+rb_export_qiime2(refs, fasta_file = q2_ref_fasta, taxonomy_file = q2_tax_tsv)
+
+qiime_bash <- sprintf(
+  '#!/bin/bash
+set -e
+source %s
+conda activate %s
+cd %s
+
+echo "=== Training QIIME2 classifier ==="
+START_TRAIN=$(date +%%s)
+qiime tools import --type "FeatureData[Sequence]" --input-path %s --output-path ref.qza
+qiime tools import --type "FeatureData[Taxonomy]" --input-format HeaderlessTSVTaxonomyFormat --input-path %s --output-path tax.qza
+qiime feature-classifier fit-classifier-naive-bayes --i-reference-reads ref.qza --i-reference-taxonomy tax.qza --o-classifier classifier.qza
+END_TRAIN=$(date +%%s)
+echo "Q2_TRAIN_TIME=$((END_TRAIN - START_TRAIN))" > timing_qiime2.txt
+
+echo "=== Classifying mock ASVs (--p-confidence 0.7) ==="
+START_CLASS=$(date +%%s)
+qiime tools import --type "FeatureData[Sequence]" --input-path %s --output-path query.qza
+qiime feature-classifier classify-sklearn --i-classifier classifier.qza --i-reads query.qza --p-confidence 0.7 --o-classification class.qza
+qiime tools export --input-path class.qza --output-path exported
+END_CLASS=$(date +%%s)
+echo "Q2_CLASS_TIME=$((END_CLASS - START_CLASS))" >> timing_qiime2.txt
+
+echo "Done. Results in exported/taxonomy.tsv"
+',
+  wsl_conda, qiime_env, wsl_bench,
+  wsl_q2_fa, wsl_q2_tx, wsl_mock
+)
+
+qiime_script_path <- file.path(bench_dir, "run_qiime2.sh")
+con_out <- file(qiime_script_path, open = "wb")
+writeChar(paste(qiime_bash, collapse = "\n"), con_out, eos = NULL) # convert to unix format
+close(con_out)
+
+cat("QIIME2 bash script written to:", qiime_script_path, "\n")
+cat("Run in WSL:\n")
+cat("  cd", wsl_bench, "\n")
+cat("  bash run_qiime2.sh\n")
+```
+
+To execute: In your WSL terminal run:
+
+```{bash eval=FALSE}
+cd /mnt/c/Users/<you>/.../inst/extdata/benchmark
+bash run_qiime2.sh
+```
+
+*Note: The bash script needs to be completed before Section 6*
+
+# 6. Performance evaluation
+
+Here we evaluate each method against the true taxonomy using precision (fraction of assigned ASVs which are correct), sensitivity (fraction of correctly assigned ASVs in total), and False Discovery Rate (FDR; fraction of assigned ASVs which are incorrect). Ties produced (where the true species is among the tied candidates) are counted as correct.
+
+```{r}
+# Helper functions 
+## Compile performance metrics
+evaluate <- function(pred, truth, method, train_time = 0, class_time = 0) {
+  df <- left_join(truth, pred, by = "asv_id")
+  assigned <- !is.na(df$species) & nzchar(df$species)
+  is_tie <- assigned & grepl("|", df$species, fixed = TRUE)
+  correct_unique <- assigned & !is_tie & (df$species == df$true_species)
+  correct_tie <- is_tie & vapply(seq_len(nrow(df)), function(i) {
+    if (!is_tie[i]) return(FALSE)
+    df$true_species[i] %in% strsplit(df$species[i], "|", fixed = TRUE)[[1]]
+  }, logical(1))
+  incorrect <- assigned & !correct_unique & !correct_tie
+  
+  data.frame(
+    Method = method,
+    Train_Time_s = round(train_time, 2),
+    Classify_Time_s = round(class_time, 2),
+    Total_ASVs = nrow(truth),
+    Assigned = sum(assigned),
+    Correct = sum(correct_unique) + sum(correct_tie),
+    Correct_unique = sum(correct_unique),
+    Correct_tie = sum(correct_tie),
+    Incorrect = sum(incorrect),
+    Unassigned = sum(!assigned),
+    Precision = round((sum(correct_unique) + sum(correct_tie)) / max(sum(assigned), 1), 4),
+    Sensitivity = round((sum(correct_unique) + sum(correct_tie)) / nrow(truth), 4),
+    FDR = round(sum(incorrect) / max(sum(assigned), 1)),
+    stringsAsFactors = FALSE
+  )
+}
+
+## Per-error-rate breakdown
+evaluate_by_error <- function(pred, truth, method) {
+  df <- left_join(truth, pred, by = "asv_id")
+  df <- df |>
+    mutate(
+      assigned = !is.na(species) & nzchar(species),
+      is_tie = assigned & grepl("|", species, fixed = TRUE),
+      correct = assigned & (
+        (!is_tie & species == true_species) |
+          (is_tie & vapply(seq_len(nrow(df)), function(i){
+            if (!is_tie[i]) return(FALSE)
+            df$true_species[i] %in% strsplit(df$species[i], "|", fixed = TRUE)[[1]]
+          }, logical(1))))
+    ) |>
+    group_by(error_rate) |>
+    summarise(
+      Total = n(),
+      Assigned = sum(assigned),
+      Correct = sum(correct),
+      Incorrect = sum(assigned & !correct),
+      Unassigned = sum(!assigned),
+      Precision = round(sum(correct) / max(sum(assigned), 1), 4),
+      Sensitivity = round(sum(correct) / n(), 4),
+      .groups = "drop"
+    ) |>
+    mutate(Method = method)
+}
+```
+
+## 6a. Overall performance
+
+```{r}
+# Load results for exact-matching, BLASTn,
+perf_list <- list(
+  evaluate(pred_rb_exact, truth_df, "RB-Exact", 0, t_rb_exact[["elapsed"]]),
+  evaluate(pred_rb_blast, truth_df, "RB-BLASTn", 0, t_rb_blast[["elapsed"]]),
+  evaluate(pred_sintax, truth_df, "SINTAX", 0, t_sintax[["elapsed"]])
+)
+
+# Conditional loading of QIIME2 results
+q2_tax_path <- file.path(bench_dir, "exported", "taxonomy.tsv")
+q2_timing_path <- file.path(bench_dir, "timing_qiime2.txt")
+
+if (file.exists(q2_tax_path)) {
+  cat("Loading QIIME2 results...\n")
+  q2_res <- read.table(q2_tax_path, sep = "\t", header = TRUE,
+                       stringsAsFactors = FALSE, check.names = FALSE, quote = "")
+  
+  # Extract species from "d__Metazoa; p__Arthropoda; ... s__Leuctra cingulata"
+  extract_sp <- function(tax_str) {
+    if (is.na(tax_str) || !nzchar(tax_str)) return(NA_character_)
+    m <- regmatches(tax_str, regexpr("s__[^;]*", tax_str))
+    if (length(m) == 0 || m == "s__") return(NA_character_)
+    sp <- sub("^s__", "", m)
+    trimws(sp)
+  }
+  q2_res$species <- vapply(q2_res[["Taxon"]], extract_sp, character(1))
+  pred_qiime2 <- q2_res |> select(asv_id = `Feature ID`, species)
+  
+  # Load timing
+  t_train_q2 <- 0; t_class_q2 <- 0
+  if (file.exists(q2_timing_path)) {
+    timing_lines <- readLines(q2_timing_path)
+    for (line in timing_lines) {
+      parts <- strsplit(line, "=")[[1]]
+      if (parts[[1]] == "Q2_TRAIN_TIME") t_train_q2 <- as.numeric(parts[[2]])
+      if (parts[[1]] == "Q2_CLASS_TIME") t_class_q2 <- as.numeric(parts[[2]])
+    }
+  }
+  
+  perf_list[["QIIME2-NB"]] <- evaluate(pred_qiime2, truth_df, "QIIME2-NB",
+                                       t_train_q2, t_class_q2)
+} else {
+  cat("QIIME2 results not found. Skipping (run the WSL script in Section 7).\n")
+}
+
+# Compile and save
+perf_summary <- bind_rows(perf_list)
+write.csv(perf_summary, file.path(bench_dir, "benchmark_performance.csv"), row.names = FALSE)
+```
+
+```{r eval=TRUE}
+print(perf_summary)
+```
+
+As expected, the exact matching method is the fastest and achieves 100 % precision but only successfully assigned 25% of the sequences, i.e., only sequences without any nucleotide errors. Because exact matching was included in `regionbarcoder` primarily for users to conduct quick tests, we will focus on the remaining three methods for this section.
+
+All three other methods assigned all the ASVS from the mock community (100 % sensitivity) with some slight variations in performance.
+
+SINTAX was the fastest, followed by BLASTn, with QIIME2 taking the longest time to complete. In addition to the longest time taken for the classification process (assignment), QIIME2 also requires users to train the classifier prior to its first use which more than doubles its run time. *would WSL slow down execution compared to native linux env?*
+
+BLASTn was the most precise for this mock community (100 %) but with 16 of the assignments being from ties (2.0 %), followed closely by both SINTAX and QIIME2, which were tied (99.0 %). All of these assignment methods had 0 false detection rate.
+
+```{r}
+perf_by_error <- bind_rows(
+  evaluate_by_error(pred_rb_exact, truth_df, "RB-Exact"),
+  evaluate_by_error(pred_rb_blast, truth_df, "RB-BLASTn"),
+  evaluate_by_error(pred_sintax,   truth_df, "SINTAX")
+)
+
+if (exists("pred_qiime2")) {
+  perf_by_error <- bind_rows(
+    perf_by_error,
+    evaluate_by_error(pred_qiime2, truth_df, "QIIME2-NB")
+  )
+}
+
+write.csv(perf_by_error, file.path(bench_dir, "benchmark_by_error_rate.csv"),row.names = FALSE)
+```
+
+```{r eval=TRUE}
+print(perf_by_error)
+```
+
+The rest of this vignette would be focused on the BLASTn results.
+
+```{r}
+# BLASTn results
+res_rb_blast <- rb_assign_edna(
+    mock_fasta, con = con, table = table_name,
+    marker = "COI", method = "blastn",
+    min_identity = blastn_identity,
+    min_coverage = 0.9,
+    blastn = blastn_path,
+    makeblastdb = makeblastdb_path)
+
+write.csv(res_rb_blast, file.path(bench_dir, "plecop_blastn_res.csv"), row.names = FALSE)
+```
+
+# 7. Resolving taxonomic ties
+
+BLASTn assignments may produce `check_full_tie` statuses when multiple references share identical alignment scores for the same ASVs. 
+
+```{r eval=TRUE}
+# Identify tied ASVs from the BLASTn result
+n_ties <- sum(res_rb_blast$assignment_status == "check_full_tie", na.rm = TRUE)
+cat("ASVs with full ties:", n_ties, "\n")
+```
+
+In this example, we have `r n_ties` full ties, which we can resolve using the tie-breaker function: `rb_tie_break()` provides an interactive console workflow that records the curator's decision, justification, and timestamp, producing a full reproducible audit log.
+
+```{r}
+if (n_ties > 0) {
+  # Interactive resolution (prompts in console for each tied ASV)
+  res_blast_curated <- rb_tie_break(res_rb_blast, curator = "Vignette Author")
+
+  # Extract the audit log
+  curation_log <- attr(res_blast_curated, "curation_log")
+  print(curation_log)
+
+  # Save for reproducibility
+  write.csv(curation_log, file.path(bench_dir, "curation_audit.csv"), row.names = FALSE)
+}
+```
+
+```{r eval=TRUE}
+head(curation_log)
+```
+
+If you prefer to edit decisions outside the console (e.g., spreadsheet), the ties table can be exported. For such tie tables, `selected_taxon` and `justification` columns need to be filled before being applied. 
+
+```{r}
+external_log <- read.csv("curation_audit.csv")
+res_blast_curated <- rb_apply_curation(res_rb_blast, external_log)
+```
+
+8. Building the species-by-sample matrix
+
+Finally, we can aggregate the curated assignments with a read-count table to produce the species-by-sample matrix that can be used for downstream ecological analyses (e.g., ordination, diversity indices, occupancy modelling, etc.)
+
+For this mock community, each ASV represents a single "sample" with read count = 1. For real data, the count table would represent per-site read abundances.
+
+```{r eval=TRUE}
+# Create a minimal count table (one mock sample, all ASVs count = 1)
+asv_table <- data.frame(asv_id = mock_df$asv_id, MockCommunity = 1L)
+
+# Build the matrix from the curated BLASTn assignments
+species_matrix <- rb_build_species_matrix(
+  assignment = res_blast_curated,
+  asv_table = asv_table,
+  include_ambiguous = FALSE, # Drop remaining unresolved ties
+  unassigned = FALSE # Drop no-match ASVs
+)
+
+cat("Species-by-sample matrix:", nrow(species_matrix), "species x", ncol(species_matrix) - 1, "sample(s)\n")
+head(species_matrix)
+```
+
+The matrix contains 102 taxa (out of 104 reference taxa) with two of the reference taxa being derived from subspecies sequences. For real-world eDNA data, each column would typically represent a sample which would share the same site ID with a separate site table. 
+
+# 9. Conclusion
+
+This case study demonstrates how `regionbarcoder` streamlines the eDNA taxonomic assignment workflow from reading in curated local reference database to a species-by-sample matrix. By dynamically querying the reference database, utilizing robust alignment algorithms, and providing a standardized framework for tie curation (`check_full_tie`), the package ensures reproducible, transparent, and bioinformatically rigorous species assignments.
+
+```{r eval=TRUE}
+rb_disconnect(con)
+cat("Vignette complete. All outputs in:", bench_dir, "\n")
+```
+
+# References
+ 
+ - Bolyen, E., Rideout, J.R., Dillon, M.R. et al. (2019). Reproducible, interactive, scalable and extensible microbiome data science using QIIME 2. *Nature Biotechnology*, 37, 852–857. https://doi.org/10.1038/s41587-019-0209-9
+ 
+ - Braukmann, T.W.A., Ivanova, N.V., Prosser, S.W.J., et al. (2019). Metabarcoding a diverse arthropod mock community. *Molecular Ecology Resources*, 19(3), 711-727. https://doi.org/10.1111/1755-0998.13008
+ 
+ - Camacho, C., Coulouris, G., Avagyan, V., et al. (2009). BLAST+: architecture and applications. *BMC Bioinformatics*, 10(1), 421. https://doi.org/10.1186/1471-2105-10-421
+ 
+ - Edgar, R.C. (2010). Search and clustering orders of magnitude faster than BLAST. *Bioinformatics*, 26(19), 2460-2461. https://doi.org/10.1093/bioinformatics/btq461
+ 
+ - Kua, Z. X., Bing, H., Wu, Y., et al. (2026). YZFishDB: A curated DNA  reference database for the fishes of the Yangtze River Basin. *Aquatic Diversity and Ecology*, 1(1), 100009. https://doi.org/10.1016/j.ade.2026.100009
+  
+ - Vuataz, L., Reding, J.-P., Reding, A., et al. (2024). A comprehensive DNA barcoding reference database for Plecoptera of Switzerland. *Scientific Reports*, 14(1), 6322. https://doi.org/10.1038/s41598-024-56930-5

@@ -21,12 +21,11 @@ inst/extdata/case_study_output.rds
 inst/extdata/barcode_gap_metrics_enhanced.csv
 inst/extdata/ambiguous_sequences_tbl_cleaned.csv
 regionbarcoder.Rcheck/
-docs/
 tmp/
 temp/
 test_dada2.fasta
 test_qiime2.fasta
 test_qiime2_taxonomy.tsv
-/doc/
-/Meta/
-docs
+doc/
+Meta/
+manuscript/

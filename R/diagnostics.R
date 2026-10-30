@@ -1,26 +1,29 @@
-rb_marker_coverage <- function(con, rank = "species") {
+rb_marker_coverage <- function(con, rank = "species", table = "yzfishdb_final") {
   valid <- c("species", "genus", "family", "order")
   if (!rank %in% valid) stop("Unsupported rank: ", rank, call. = FALSE)
   rank_sql <- as.character(DBI::dbQuoteIdentifier(con, rank))
+  tbl <- rb_quote_table(con, table)
   sql <- paste0(
     "select ", rank_sql, " as ", rank, ", seq_type, count(*) as n_sequences, ",
-    "count(distinct source) as n_sources from yzfishdb_final ",
+    "count(distinct source) as n_sources from ", tbl,
     "where qc_flag = 'pass' group by ", rank_sql, ", seq_type ",
     "order by ", rank_sql, ", seq_type"
   )
   DBI::dbGetQuery(con, sql)
 }
 
-rb_source_coverage <- function(con) {
+rb_source_coverage <- function(con, table = "yzfishdb_final") {
+  tbl <- rb_quote_table(con, table)
   DBI::dbGetQuery(con, paste(
     "select source, seq_type, count(*) as n_sequences,",
     "count(distinct species) as n_species",
-    "from yzfishdb_final where qc_flag = 'pass'",
+    "from ", tbl, " where qc_flag = 'pass'",
     "group by source, seq_type order by source, seq_type"
   ))
 }
 
-rb_qc_summary <- function(con) {
+rb_qc_summary <- function(con, table="yzfishdb_final") {
+  tbl <- rb_quote_table(con, table)
   if ("qc_reference_p2" %in% DBI::dbListTables(con)) {
     DBI::dbGetQuery(con, paste(
       "select qc_flag, count(*) as n_sequences",
@@ -29,7 +32,7 @@ rb_qc_summary <- function(con) {
   } else {
     DBI::dbGetQuery(con, paste(
       "select qc_flag, count(*) as n_sequences",
-      "from yzfishdb_final group by qc_flag order by n_sequences desc"
+      "from ", tbl, " group by qc_flag order by n_sequences desc"
     ))
   }
 }

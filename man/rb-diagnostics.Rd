@@ -10,16 +10,16 @@ Generate diagnostic summaries that make reference-database limitations visible
 before interpreting eDNA assignments.
 }
 \usage{
-rb_marker_coverage(con, rank = "species")
-rb_source_coverage(con)
-rb_qc_summary(con)
+rb_marker_coverage(con, rank = "species", table = "yzfishdb_final")
+rb_source_coverage(con, table = "yzfishdb_final")
+rb_qc_summary(con, table = "yzfishdb_final")
 rb_barcode_gap(con, species = NULL, marker = NULL)
 rb_ambiguity(con)
 }
 \arguments{
 \item{con}{A DBI SQLite connection returned by \code{\link{rb_connect}}.}
-\item{rank}{Taxonomic rank for marker coverage summaries. Supported values are
-\code{"species"}, \code{"genus"}, \code{"family"}, and \code{"order"}.}
+\item{rank}{Taxonomic rank for marker coverage summaries. Supported values are \code{"species"}, \code{"genus"}, \code{"family"}, and \code{"order"}.}
+\item{table}{Character. Name of the reference table to query. Default \code{"yzfishdb_final"}. Use this to query user-created databases built with \code{\link{rb_create_db}}.}
 \item{species}{Optional species filter for barcode-gap metrics.}
 \item{marker}{Optional marker filter for barcode-gap metrics.}
 }

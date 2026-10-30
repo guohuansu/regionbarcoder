@@ -11,9 +11,9 @@ quality-control state, and sequence length.
 \usage{
 rb_get_sequences(con, species = NULL, genus = NULL, family = NULL,
                  marker = NULL, source = NULL, occurrence = NULL, 
-                 qc_flag = "pass", exact = FALSE)
+                 qc_flag = "pass", exact = FALSE, table = "yzfishdb_final")
 rb_list_taxa(con, rank = "species", occurrence = NULL, 
-             marker = NULL, qc_flag = "pass", exact = FALSE)
+             marker = NULL, qc_flag = "pass", exact = FALSE, table = "yzfishdb_final")
 rb_filter_reference(data, marker = NULL, source = NULL, occurrence = NULL,
                     min_length = NULL, max_length = NULL, qc_flag = "pass",
                     exact = FALSE)
@@ -28,6 +28,7 @@ or \code{"COI"}.}
 \code{"introduced"}.}
 \item{qc_flag}{Character vector of quality-control state(s) to retain. Defaults to \code{"pass"}.}
 \item{exact}{Logical. If \code{TRUE}, enforces strict equality (\code{==}) for \code{qc_flag} matching, ignoring composite flags. If \code{FALSE} (default), allows partial matching.}
+\item{table}{Character. Name of the reference table to query. Default \code{"yzfishdb_final"}. Use this to query user-created databases built with \code{\link{rb_create_db}}.}
 \item{rank}{Taxonomic rank to list. Supported ranks are kingdom, phylum, class,
 order, family, genus, and species.}
 \item{data}{A reference sequence data frame, usually returned by

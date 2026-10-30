@@ -7,7 +7,7 @@
 Assign ASV FASTA records against a marker-specific regional reference subset, classify assignment confidence using robust alignment metrics, and aggregate ASV count tables to species-level community matrices.
 }
 \usage{
-rb_assign_edna(asv_fasta, con = NULL, db_path = NULL, marker = NULL,
+rb_assign_edna(asv_fasta, con = NULL, table = "yzfishdb_final", db_path = NULL, marker = NULL,
   method = c("blastn", "exact"), min_identity = 99, min_coverage = 0.9,
   max_target_seqs = 100, out_dir = tempfile("regionbarcoder_assign_"),
   blastn = "blastn", makeblastdb = "makeblastdb")
@@ -19,6 +19,7 @@ rb_build_species_matrix(assignment, asv_table, include_ambiguous = FALSE,
 \arguments{
 \item{asv_fasta}{FASTA file containing ASV sequences.}
 \item{con}{Optional DBI SQLite connection. If omitted, \code{db_path} is used to open a connection.}
+\item{table}{Character. Name of the reference table to query. Default \code{"yzfishdb_final"}. Use this to query user-created databases built with \code{\link{rb_create_db}}.}
 \item{db_path}{Optional SQLite database path used when \code{con} is not supplied.}
 \item{marker}{Optional marker filter used to select the reference subset.}
 \item{method}{Assignment method. \code{"blastn"} uses BLAST+; \code{"exact"} is a dependency-free exact matching mode for tests and demonstrations.}

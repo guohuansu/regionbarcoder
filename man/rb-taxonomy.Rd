@@ -7,7 +7,7 @@ Inspect distinct taxonomy records and convert seven-rank taxonomy columns into
 plain or rank-prefixed taxonomy strings for downstream export formats.
 }
 \usage{
-rb_taxonomy(con, species = NULL, qc_flag = "pass", exact = FALSE)
+rb_taxonomy(con, species = NULL, qc_flag = "pass", exact = FALSE, table = "yzfishdb_final")
 rb_build_taxonomy_string(data, style = c("plain", "rank_prefix"))
 }
 \arguments{
@@ -15,6 +15,7 @@ rb_build_taxonomy_string(data, style = c("plain", "rank_prefix"))
 \item{species}{Optional character vector of species names to filter.}
 \item{qc_flag}{Character vector of quality-control state(s) to retain. Defaults to \code{"pass"}.}
 \item{exact}{Logical. If \code{TRUE}, enforces strict equality (\code{==}) for \code{qc_flag} matching, ignoring composite flags. If \code{FALSE} (default), allows partial matching.}
+\item{table}{Character. Name of the reference table to query. Default \code{"yzfishdb_final"}. Use this to query user-created databases built with \code{\link{rb_create_db}}.}
 \item{data}{A data frame containing \code{kingdom}, \code{phylum}, \code{class}, \code{order}, \code{family}, \code{genus}, and \code{species} columns.}
 \item{style}{Taxonomy string style. \code{"plain"} returns semicolon-separated
 rank values; \code{"rank_prefix"} returns strings such as \code{k__Animalia}.}

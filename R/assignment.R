@@ -13,7 +13,7 @@ rb_read_fasta <- function(path) {
   data.frame(asv_id = ids, sequence = rb_clean_sequence(seqs), stringsAsFactors = FALSE)
 }
 
-rb_score_assignments <- function(hits, min_identity = 99, min_coverage = 0.9,
+rb_score_assignments <- function(hits, min_identity = 97, min_coverage = 0.9,
                                  tie_bitscore = 0) {
   if (nrow(hits) == 0) {
     return(data.frame())
@@ -150,7 +150,7 @@ rb_assign_blastn <- function(asv_fasta, refs, out_dir, min_identity, min_coverag
 }
 
 rb_assign_edna <- function(asv_fasta, con = NULL, table = "yzfishdb_final", db_path = NULL, marker = NULL,
-                           method = c("blastn", "exact"), min_identity = 99,
+                           method = c("blastn", "exact"), min_identity = 97,
                            min_coverage = 0.9, max_target_seqs = 100,
                            out_dir = tempfile("regionbarcoder_assign_"),
                            blastn = "blastn", makeblastdb = "makeblastdb") {

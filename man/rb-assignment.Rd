@@ -8,10 +8,10 @@ Assign ASV FASTA records against a marker-specific regional reference subset, cl
 }
 \usage{
 rb_assign_edna(asv_fasta, con = NULL, table = "yzfishdb_final", db_path = NULL, marker = NULL,
-  method = c("blastn", "exact"), min_identity = 99, min_coverage = 0.9,
+  method = c("blastn", "exact"), min_identity = 97, min_coverage = 0.9,
   max_target_seqs = 100, out_dir = tempfile("regionbarcoder_assign_"),
   blastn = "blastn", makeblastdb = "makeblastdb")
-rb_score_assignments(hits, min_identity = 99, min_coverage = 0.9,
+rb_score_assignments(hits, min_identity = 97, min_coverage = 0.9,
   tie_bitscore = 0)
 rb_build_species_matrix(assignment, asv_table, include_ambiguous = FALSE,
   unassigned = FALSE)

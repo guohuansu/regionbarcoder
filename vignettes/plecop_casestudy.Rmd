@@ -58,6 +58,20 @@ The workflow proceeds through six stages:
 
   6. **Ecological matrix**: Construct a species-by-sample read-count matrix for downstream community-ecology analyses.
 
+## How to read this vignette
+
+This vignette produces four types of outputs:
+
+ 1. **Converted database summaries** — the result of importing flat FASTA/CSV files via `rb_create_db()`.
+ 
+ 2. **Mock-community ground truth** — a table linking each simulated ASV to its known source species and error rate.
+ 
+ 3. **Assignment tables and benchmark metrics** — how each method classified each ASV, and aggregate precision/sensitivity/FDR.
+ 
+ 4. **Curation log and species-by-sample matrix** — the documented resolution of ambiguous ties and the final ecological output.
+
+The key interpretive distinction throughout is between **database ambiguity** (multiple taxa are equally plausible given the reference pool) and **method error** (the algorithm picked the wrong taxon despite a clear best match). A tie does not mean the pipeline failed; it means the biology or the reference database is genuinely ambiguous.
+
 > Note: Because the QIIME2 benchmarking step requires a Linux environment (Windows Subsystem for Linux; WSL), its results are loaded conditionally. The vignette completes successfully with or without the QIIME2 output present.
 
 # Prerequisites
@@ -163,6 +177,12 @@ rb_create_db(
 )
 ```
 
+`rb_create_db()` converts ordinary flat reference files into a `regionbarcoder`-compatible SQLite database. It merges sequences with metadata on the user-specified join column (`unique_code`), adds standardized fields where missing (e.g., `kingdom`, `phylum`, `class`, `order` are filled with `NA` if absent from the source CSV), and writes the result to a single `.db` file.
+
+If `species` column is missing from the metadata, the function will stop with an error — it cannot infer taxonomy reliably. If higher-rank taxonomy is missing, the database is still created, but rank-based queries and some export formats will be less informative.
+
+> Note: Table S2 from Vuataz et al. (2024) uses column names like `Morphological ID 2023` and `GenBank ID`. We rename these to `species` and `seq_id` before calling `rb_create_db()`. The original column names are preserved in the SQLite file so that no information is lost.
+
 # 3. Auditing the reference database
 
 Before assigning any query sequences, `regionbarcoder` allows comprehensive auditing of the reference pool. This is the key advantage of a relational database over a static FASTA: users can inspect coverage, quality, and source composition before committing to an assignment strategy. In addition, by standardizing these workflows, these steps can be easily reproduced and archived.
@@ -196,7 +216,9 @@ qc_summary <- rb_qc_summary(con, table = table_name)
 print(qc_summary)
 ```
 
-> Note: Because this database consists of references from a published local reference database, all sequences were assigned `qc_flag=="pass"` by default.
+The audit confirms that the converted database contains the expected 104 species and 319 sequences. Because this database only contains COI sequences, `rb_marker_coverage()` only reports a single `seq_type` value. Similarly, the source composition reports our previous input `Vuataz_et_al_2024` and the `qc_summary` reports all sequences `pass` curation.
+
+> Note: An example of a more complex multi-marker database is included in the YZFishDB vignette.
 
 ## 3d. Exporting Pipeline-Ready References
 
@@ -276,13 +298,25 @@ mock_fasta <- file.path(bench_dir, "mock_asvs.fasta")
 writeLines(c(rbind(paste0(">", mock_df$asv_id), mock_df$sequence)), mock_fasta)
 ```
 
+Every simulated ASV is derived from one reference species and carries a known simulated divergence level. The `truth_df` table links each ASV identifier to its true species and error rate, enabling objective evaluation.
+
+An identifier such as `Mock-0042-01.0pct-r1` encodes:
+ 
+ - `0042`: the 42nd reference species in the sorted taxon list.
+ 
+ - `01.0pct`: a 1.0% simulated substitution rate.
+ 
+ - `r1`: the first replicate (two replicates per species per error level).
+
+> Note: Errors are introduced as random nucleotide substitutions only. Therefore, this benchmark evaluates robustness to substitution-type sequencing error and intraspecific divergence, not to indel-rich error profiles. For a full discussion of error-model limitations, see Braukmann et al. (2019).
+
 # 5. Benchmarking taxonomic assignment methods
 
 We compare the performances of four assignment strategies spanning the major algorithmic classes commonly used in contemporary eDNA metabarcoding: 1) Exact matching (string matching), 2) BLASTn (local alignment), 3) SINTAX (*k*-mer heuristic), 4) QIIME2 (Naive Bayes). 
 
-## 5a. Exact matching
+## 5a. Exact-matching
 
-Exact matching is a built-in taxonomic assignment option for `rb_assign_edna()` which utilizes simple string matching for assignment.
+Exact-matching is a built-in taxonomic assignment option for `rb_assign_edna()` which utilizes simple string matching for assignment. Exact-matching assigns an ASV only when its nucleotide string is byte-for-byte identical to a reference. High precision is therefore expected, but sensitivity should drop immediately once any substitution is introduced. 
 
 ```{r}
 cat("Running regionbarcoder (Exact)...\n")
@@ -297,7 +331,7 @@ pred_rb_exact <- res_rb_exact |> select(asv_id, species)
 
 ## 5b. BLASTn
 
-`rb_assign_edna()` also allows users to opt for the BLASTn local alignment taxonomic assignment method as a wrapper which relies on the BLAST+ suite (`blastn` and `makeblastdb`).
+`rb_assign_edna()` also allows users to opt for the BLASTn local alignment taxonomic assignment method as a wrapper which relies on the BLAST+ suite (`blastn` and `makeblastdb`). 
 
 ```{r}
 cat("Running regionbarcoder (BLASTn, ", blastn_identity, "% identity)...\n", sep = "")
@@ -316,7 +350,9 @@ pred_rb_blast <- res_rb_blast |> select(asv_id, species)
 
 ## 5c. SINTAX
 
-SINTAX is *k*-mer heuristic taxonomic assignment algorithm that is often used through USEARCH/VSEARCH. `regionbarcoder` allows users to export the selected reference database as FASTA files, with pre-defined templates for commonly used bioinformatic pipelines (BLASTn, USEARCH/VSEARCH, QIIME2, DADA2). 
+SINTAX is *k*-mer heuristic alignment plus bootstrap taxonomic assignment approach that is often used through USEARCH/VSEARCH. Unlike BLASTn, it does not produce the same alignment metrics consumed by `regionbarcoder`; its output is converted to a simple ASV-to-species prediction table before evaluation. The `--sintax_cutoff` parameter controls the minimum bootstrap confidence required to report an assignment at a given rank. A cutoff of 0.8 means that SINTAX will only report a species-level call if it is ≥80% confident that the assigned taxon is correct.
+
+`regionbarcoder` allows users to export the selected reference database as FASTA files, with pre-defined templates for commonly used bioinformatic pipelines (BLASTn, USEARCH/VSEARCH, QIIME2, DADA2). 
 
 We use the `rb_export_usearch()` to export a formatted reference database before passing the sintax command through `system2()`. 
 
@@ -357,11 +393,13 @@ pred_sintax <- sintax_res |> select(asv_id, species)
 cat("SINTAX assigned:", sum(!is.na(pred_sintax$species)), "of", nrow(pred_sintax), "\n")
 ```
 
+> Note: If SINTAX returns zero assignments, inspect the reference FASTA headers. SINTAX expects USEARCH-style taxonomy headers (`>id;tax=d:...,p:...,c:...,o:...,f:...,g:...,s:...`), not QIIME2-style rank prefixes (`d__`, `p__`, `s__`). The `rb_export_usearch()` function produces the correct format.
+
 ## 5d. QIIME2 Naive Bayes
 
-QIIME2 includes several options for taxonomic assignment methods based on Naive Bayes classification (Further details available on https://amplicon-docs.qiime2.org/en/stable/). Here we use the basic Naive Bayes classification algorithm by training a custom classifier and applying it for taxonomic assignment. 
+QIIME2 includes several options for taxonomic assignment methods based on Naive Bayes classification (Further details available on https://amplicon-docs.qiime2.org/en/stable/). Here we use the basic Naive Bayes classification algorithm by training a custom classifier and applying it for taxonomic assignment. Unlike alignment-based methods, it assigns taxonomy probabilistically based on learned *k*-mer features. The reported confidence is a **posterior probability**, not percent identity and not SINTAX bootstrap support. Therefore, QIIME2 thresholds should not be numerically compared directly to BLASTn identity thresholds.
 
-Because QIIME2 does **not** run natively on Windows OS, QIIME2 methods are run through WSL. Here, we generate a bash script which is then run externally through a WSL terminal with a QIIME2 environment.
+Because QIIME2 does **not** run natively on Windows OS, QIIME2 was executed through WSL. Here, we generate a bash script which is then run externally through a WSL terminal with a QIIME2 environment.
 
 ```{r}
 to_wsl_path <- function(win_path) {
@@ -551,11 +589,24 @@ write.csv(perf_summary, file.path(bench_dir, "benchmark_performance.csv"), row.n
 print(perf_summary)
 ```
 
-As expected, the exact matching method is the fastest and achieves 100 % precision but only successfully assigned 25% of the sequences, i.e., only sequences without any nucleotide errors. Because exact matching was included in `regionbarcoder` primarily for users to conduct quick tests, we will focus on the remaining three methods for this section.
+| Metric | Definition |
+|--------|-----------|
+| Assigned | ASVs for which the method produced a species-level call |
+| Correct | Assigned ASVs whose prediction matched the mock ground truth |
+| Ties | Assignments where multiple taxa were equally supported; ties containing the true species count as correct |
+| Incorrect | Assigned ASVs whose prediction did not match the ground truth |
+| Unassigned | ASVs for which the method produced no usable call |
+| Precision | Correct / Assigned (of those it called, how many were right?) |
+| Sensitivity | Correct / Total (of all ASVs, how many were recovered?) |
+| FDR | Incorrect / Assigned (of those it called, how many were wrong?) |
+
+As expected, the exact matching method is the fastest and achieves 100 % precision but only successfully assigned 25% of the sequences, i.e., only sequences without any nucleotide errors, confirming that exact matching alone is insufficient for empirical metabarcoding data carrying sequencing errors or natural intraspecific variation. Because exact matching was included in `regionbarcoder` primarily for users to conduct quick tests, we will focus on the remaining three methods for this section.
 
 All three other methods assigned all the ASVS from the mock community (100 % sensitivity) with some slight variations in performance.
 
-SINTAX was the fastest, followed by BLASTn, with QIIME2 taking the longest time to complete. In addition to the longest time taken for the classification process (assignment), QIIME2 also requires users to train the classifier prior to its first use which more than doubles its run time. *would WSL slow down execution compared to native linux env?*
+SINTAX was the fastest, followed by BLASTn, with QIIME2 taking the longest time to complete. In addition to the longest time taken for the classification process (assignment), QIIME2 also requires users to train the classifier prior to its first use which more than doubles its run time.
+
+Because QIIME2 was run through WSL, filesystem access between Windows (`/mnt/c/...`) and WSL adds I/O overhead, particularly for QIIME2's `.qza` archive operations. The reported training time (48 s) and classification time (42 s) should be interpreted as the time required in this cross-platform setup, not as the theoretical runtime on a native Linux installation.
 
 BLASTn was the most precise for this mock community (100 %) but with 16 of the assignments being from ties (2.0 %), followed closely by both SINTAX and QIIME2, which were tied (99.0 %). All of these assignment methods had 0 false detection rate.
 
@@ -580,6 +631,8 @@ write.csv(perf_by_error, file.path(bench_dir, "benchmark_by_error_rate.csv"),row
 print(perf_by_error)
 ```
 
+> Note: BLASTn uses percent identity (97%), SINTAX uses bootstrap confidence (0.8), and QIIME2 uses posterior probability (0.7). These are fundamentally different statistical quantities. The tables compare methods by downstream performance (precision, sensitivity, FDR), not by equality of threshold values.
+
 The rest of this vignette would be focused on the BLASTn results.
 
 ```{r}
@@ -597,7 +650,7 @@ write.csv(res_rb_blast, file.path(bench_dir, "plecop_blastn_res.csv"), row.names
 
 # 7. Resolving taxonomic ties
 
-BLASTn assignments may produce `check_full_tie` statuses when multiple references share identical alignment scores for the same ASVs. 
+BLASTn assignments may produce `check_full_tie` statuses when multiple references share identical alignment scores for the same ASVs. This reflects genuine ambiguity in the reference database (e.g., congeneric species with identical COI barcodes) or evolutionary similarity. These cases are routed to the curation workflow rather than being arbitrarily resolved.
 
 ```{r eval=TRUE}
 # Identify tied ASVs from the BLASTn result
@@ -625,7 +678,18 @@ if (n_ties > 0) {
 head(curation_log)
 ```
 
-If you prefer to edit decisions outside the console (e.g., spreadsheet), the ties table can be exported. For such tie tables, `selected_taxon` and `justification` columns need to be filled before being applied. 
+| Column | Meaning |
+|--------|---------|
+| `asv_id` | The ambiguous ASV |
+| `original_ties` | Pipe-separated candidate taxa before curation |
+| `selected_taxon` | Taxon chosen by the curator, or `UNRESOLVED` / `SKIPPED` |
+| `justification` | Free-text reason for the decision |
+| `curator` | Person or role making the decision |
+| `timestamp` | Date and time of the decision |
+
+After curation, the assignment status changes from `check_full_tie` to `resolved_manual`. This status is treated as a valid assignment by `rb_build_species_matrix()`, allowing curated ASVs to enter the final ecological matrix while preserving the fact that expert intervention was required.
+
+If you prefer to edit decisions outside the console (e.g., in a spreadsheet reviewed by a taxonomic expert), export the curation log with `write.csv(attr(res, "curation_log"), "log.csv")`, have the expert fill in `selected_taxon` and `justification`, then apply the decisions programmatically with `rb_apply_curation()`.
 
 ```{r}
 external_log <- read.csv("curation_audit.csv")
@@ -646,15 +710,17 @@ asv_table <- data.frame(asv_id = mock_df$asv_id, MockCommunity = 1L)
 species_matrix <- rb_build_species_matrix(
   assignment = res_blast_curated,
   asv_table = asv_table,
-  include_ambiguous = FALSE, # Drop remaining unresolved ties
-  unassigned = FALSE # Drop no-match ASVs
+  include_ambiguous = FALSE,
+  unassigned = FALSE
 )
 
 cat("Species-by-sample matrix:", nrow(species_matrix), "species x", ncol(species_matrix) - 1, "sample(s)\n")
 head(species_matrix)
 ```
 
-The matrix contains 102 taxa (out of 104 reference taxa) with two of the reference taxa being derived from subspecies sequences. For real-world eDNA data, each column would typically represent a sample which would share the same site ID with a separate site table. 
+The species-by-sample matrix has taxa as rows and samples as columns. Each cell contains the read count assigned to that taxon in that sample. In this mock-community example, there is only one sample column (`MockCommunity`), but for real eDNA data each column would represent a site, time point, replicate, or filter sample.
+
+Although the reference database contains 104 taxa, the final matrix only has 103 species because one subspecies-level record (*Nemoura cinerea cinerea*) was collapsed into its parent species (*Nemoura cinerea*) during tie curation. This is expected when a reference database contains intraspecific records that are not meant to be reported as independent ecological detections.
 
 # 9. Conclusion
 

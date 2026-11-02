@@ -1,5 +1,5 @@
 ---
-title: "Case study: Taxonomic assignment of Yangtze River eDNA using YZFishDB"
+title: "Case study: Auditing, querying, and exporting a multti-marker regional reference database (YZFishDB)"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -20,7 +20,23 @@ output <- readRDS(output_path)
 
 This vignette demonstrates the complete workflow of the `regionbarcoder` package using a real-world environmental DNA (eDNA) dataset from the Yangtze River basin. We will walk through installing the `YZFishDB` reference database, auditing its taxonomic and marker coverage, assessing its barcoding gap diagnostic, benchmarking assignment methods (Exact vs. BLASTn), resolving taxonomic ties, and generating a final species-by-site ecological matrix.
 
-*Note: This case study utilizes the `YZFishDB.db` reference database. To run this code locally, ensure you update the file paths in the setup chunk to match your system.*
+## How to read this vignette
+
+This vignette produces three types of outputt:
+ 
+ 1. **Database inventory** - table names, row counts, and file paths.
+ 
+ 2. **Audit summaries** — QC flags, taxonomic counts, marker coverage, source composition, and barcode-gap statistics returned as data frames.
+ 
+ 3. **Exported reference files** — FASTA and taxonomy tables written to disk for use in DADA2, QIIME2, BLASTn, or USEARCH/VSEARCH.
+
+Guiding questions:
+
+Audit summaries: *Does this database contain enough relevant reference material for my intended marker and taxonomic group?*
+
+Exported files: *Does the exported file correspond exactly to the filtered reference set inspected?*
+
+> Note: This vignette uses a pre-compiled output object (`case_study_output.rds`) so that it can render without requiring local `YZFishDB.db` reference database installation. To run this code locally, ensure you update the file paths in the setup chunk to match your system. 
 
 # 1. Database Setup and Configuration
 
@@ -42,8 +58,12 @@ Once installed, connecting to the database is seamless:
 
 ```{r}
 con <- rb_connect()
-rb_tables(con) # Inspect available tablles in the database
+rb_tables(con) # Inspect available tables in the database
 ```
+
+`rb_connect()` opens a SQLite connection without loading the entire database into R memory. The returned `con` object is passed to all downstream functions.
+
+`rb_tables()` inventories the relational tables stored inside the connected database. The main reference table contains one row per sequence; optional diagnostic tables (e.g., `barcode_gap_metrics`, `ambiguous_sequences`) may or may not be present depending on the database release. Missing diagnostic table is not an error but simply means that layer of audit was not included in the connected database.
 
 ## Loading libraries
 
@@ -72,6 +92,8 @@ print(qc_summary)
 print(output$qc_summary)
 ```
 
+`qc_summary` reports how many sequences (`n_sequences`) carry each type of quality-control flags (`qc_flag`). In a curated release like `YZFishDB`, mostt sequences are flagged `pass`, meaning they passed the curation filters. Non-`pass` flags (e.g, `divergent`, `sequence_short`) record sequences that were retained for provenance but excluded from default reference database selection.
+
 ### Audit taxonomic coverage by marker
 
 ```{r eval=FALSE}
@@ -92,6 +114,10 @@ head(output$species_all)
 cat("Species with 12S data:", nrow(output$species_12s), "\n")
 cat("Species with any marker data:", nrow(output$species_all), "\n")
 ```
+
+`rb_marker_coverage()` shows how many sequences (`n_sequences`) and how many distinct taxa (`species`) are represented for each (or the selected) marker (`seq_type`). A marker with broad species coverage is typically preferable for regional surveys, though this decision should be informed based on the geographic region and target taxa as markers common markers may not always yield the best results. 
+
+Regardless, sparse marker coverage (e.g., 16S for 241 species vs. 12S for 429 species) can help us decide whether ASVs should be derived from particular primers and warns us that ASVs derived from under-represented taxa will likely be unassigned or ambiguous.
 
 ### Audit source coverage
 
@@ -133,9 +159,11 @@ p2 <- ggplot(source_cov_plot_data,
 ggpubr::ggarrange(p1, p2, common.legend = TRUE, ncol = 2)
 ```
 
-```{r eval=TRUE, echo=FALSE, out.width="80%"}
+```{r eval=TRUE, echo=FALSE, out.width="80%", fig.cap="Left: Absolute sequence counts by source. Right: Proportional contribution of sequence types for each source."}
 knitr::include_graphics("source_cov.png")
 ```
+
+Source composition tells us **where** the reference material was sourced from, which can affect the confidence in taxonomic annotations. Databases dominated by a single major source, may reflect the specificity of the database or the potential bias of its references. Conversely, local collections often used to fill region-specific gaps may introduce curator-dependent annotation risks.
 
 ## Barcode Gap Diagnostic
 
@@ -154,273 +182,11 @@ gap_summary <- gap_metrics |>
 gap_summary
 ```
 
-# 3. Preparing ASV Data
+Barcode-gap diagnostics estimates whether intraspecific variation is sufficiently separated from interspecific divergence for a given marker and taxon. A positive median gap suggests that the marker can resolve species boundaries for that group. A zero or negative gap warns that congeneric species may share identical or near-identical sequences increasing the likelihood of assignment ties.
 
-The package requires ASV sequences in a FASTA file and a corresponding count table. We extract these from a standard DADA2 sequence table (`seqtab`).
+In this example, 93 of 113 taxa (`r round(93/113*100, 1)`%) tested from `YZFishDB` has a median barcode gap, while the remaining taxa are potentially ambiguity hotspots for metabarcoding.
 
-In this example, we used the ASV dataset included in the package as the `asv_path` and set a path for the FASTA file to the exported (`asv_fasta <- "data/"`).
-
-```{r}
-asv_path <- "yz_12s_r1.rds"
-asv_fasta <- "data/"
-
-seqtab <- readRDS(asv_path)
-seqtab <- seqtab[!rownames(seqtab) %in%
-                   c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz",
-                     "ZTPSN21IP270-LBT_R1.fq.gz"), ]
-# Extract sequences and assign standardized ASV IDs
-asv_seqs <- colnames(seqtab)
-asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
-names(asv_seqs) <- asv_ids
-
-# Write to FASTA
-writeXStringSet(DNAStringSet(asv_seqs), filepath = asv_fasta)
-
-# Create ASV count table (Samples x ASVs)
-asv_table <- as.data.frame(t(seqtab))
-asv_table$asv_id <- asv_ids
-asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
-```
-
-```{r eval=TRUE, include=FALSE}
-asv_path <- system.file("extdata", "yz_12s_r1.rds", package = "regionbarcoder")
-seqtab <- readRDS(asv_path)
-seqtab <- seqtab[!rownames(seqtab) %in% c("ZTPSN21IP180-DYXSLCRHK_R1.fq.gz",
-                                          "ZTPSN21IP270-LBT_R1.fq.gz"), ]
-asv_seqs <- colnames(seqtab)
-asv_ids <- sprintf("ASV_%05d", seq_along(asv_seqs))
-names(asv_seqs) <- asv_ids
-asv_table <- as.data.frame(t(seqtab))
-asv_table$asv_id <- asv_ids
-asv_table <- asv_table[, c("asv_id", setdiff(names(asv_table), "asv_id"))]
-```
-
-# 4. Taxonomic Assignment: Exact vs. BLASTn
-
-A key feature of `regionbarcoder` is the ability to easily benchmark different assignment methods. Here, we compare the dependency-free exact matching method against the robust BLASTn method, using both the full YzFishDB reference database and the 12S subset of the database.
-
-```{r}
-# Full Database
-## Run EXACT Match
-t_exact <- system.time({
-  res_exact <- rb_assign_edna(
-    asv_fasta = asv_fasta,
-    con = con,
-    method = "exact",
-    out_dir = blast_out_dir
-  )
-})
-## Run BLASTn
-t_blast <- system.time({
-  res_blast <- rb_assign_edna(
-    asv_fasta = asv_fasta,
-    con = con,
-    method = "blastn",
-    out_dir = blast_out_dir,
-    blastn = blastn_path,
-    makeblastdb = makeblastdb_path
-  )
-})
-
-# 12S Database subset
-t_exact_12 <- system.time({
-  res_exact_12 <- rb_assign_edna(
-    asv_fasta = asv_fasta,
-    con = con,
-    marker = "12S",
-    method = "exact",
-    out_dir = blast_out_dir
-  )
-})
-
-# Run BLASTn
-t_blast_12 <- system.time({
-  res_blast_12 <- rb_assign_edna(
-    asv_fasta = asv_fasta,
-    con = con,
-    marker = "12S",
-    method = "blastn",
-    out_dir = blast_out_dir,
-    blastn = blastn_path,
-    makeblastdb = makeblastdb_p
-  )
-})
-
-# Compare Results
-## Full database
-comparison <- data.frame(
-  Method = c("Exact", "BLASTn"),
-  Time_seconds = c(t_exact[3], t_blast[3]),
-  ASVs_Assigned = c(
-    sum(res_exact$assignment_status != "no_match"),
-    sum(res_blast$assignment_status != "no_match")
-  ),
-  Success_Rate_Pct = c(round(
-    mean(res_exact$assignment_status != "no_match") * 100, 2
-  ), round(
-    mean(res_blast$assignment_status != "no_match") * 100, 2
-  )),
-  Database = c("Full", "Full")
-)
-## 12S database subset
-comparison_12 <- data.frame(
-  Method = c("Exact", "BLASTn"),
-  Time_seconds = c(t_exact_12[3], t_blast_12[3]),
-  ASVs_Assigned = c(
-    sum(res_exact_12$assignment_status != "no_match"),
-    sum(res_blast_12$assignment_status != "no_match")
-  ),
-  Success_Rate_Pct = c(round(
-    mean(res_exact_12$assignment_status != "no_match") * 100, 2
-  ), round(
-    mean(res_blast_12$assignment_status != "no_match") * 100, 2
-  )),
-  Database = c("12S", "12S")
-)
-
-comparison_df <- rbind(comparison, comparison_12)
-
-print(comparison_df)
-```
-
-```{r eval=TRUE, echo=FALSE}
-output$comparison
-```
-
-*Note: As expected, Exact matching is significantly faster but yields a lower success rate due to its strict 100% identity requirement. BLASTn is the recommended method for complex environmental samples.*
-
-Comparison between the assigned ASVs also reveal that using the full database assigned `r nrow(output$assign_compare)` additional ASVs. However these assignments were all flagged as low quality matches (`low`), emphasizing the importance of selecting the most appropriate reference database for taxonomic assignment.
-
-```{r}
-assign_12 <- filter(res_blast_12, assignment_status == "unique")
-assign_full <- filter(res_blast, assignment_status == "unique")
-
-assign_compare_df <- full_join(
-  dplyr::select(assign_full, asv_id, species, confidence),
-  dplyr::select(assign_12, asv_id, species, confidence),
-  by = 'asv_id',
-  suffix = c("_f", "_12")
-) |>
-  mutate(taxa_diff = species_f == species_12,
-         conf_diff = confidence_f == confidence_12) |>
-  replace_na(list(taxa_diff = FALSE, conf_diff = FALSE)) |>
-  filter(!taxa_diff | !conf_diff)
-print(dplyr::select(assign_compare_df, -taxa_diff, -conf_diff))
-```
-
-```{r eval=TRUE, echo=FALSE}
-output$assign_compare |> dplyr::select(-taxa_diff, -conf_diff)
-```
-
-# 5. Resolving Ambiguities (Manual Curation)
-
-The upgraded BLASTn pipeline uses advanced metrics (`ccovs`, `bitscore_pb`) and automatically flags perfect ties as "`check_full_tie`". This allows researchers to easily export and manually curate ambiguous ASVs based on biogeography or taxonomy.
-
-Example: `ASV_07559`, `ASV_08335`, `ASV_09885` are a ties between *Gymnodiptychus pachycheilus* and *Schizopygopsis kialingensis*. Based on literature, *G. pachycheilus* is the correct assignment for this region.
-
-```{r}
-ties <- res_blast_12 |> filter(assignment_status == "check_full_tie")
-cat("Number of ASVs requiring manual curation:", nrow(ties), "\n")
-
-if (nrow(ties) > 0) {
-  print(arrange(ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
-}
-
-res_blast_12 <- res_blast_12 |>
-  mutate(
-    species = case_when(
-      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "Gymnodiptychus pachycheilus",
-      TRUE ~ species
-    ),
-    assignment_status = case_when(
-      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ "unique",
-      TRUE ~ assignment_status
-    ),
-    tie_taxa = case_when(
-      asv_id %in% c("ASV_07559", "ASV_08335", "ASV_09885") ~ NA_character_,
-      TRUE ~ tie_taxa
-    )
-  )
-```
-
-```{r echo=TRUE, eval=TRUE}
-cat("Number of ASVs requiring manual curation:",
-    nrow(output$ties),
-    "\n")
-
-if (nrow(output$ties) > 0) {
-  print(arrange(output$ties[, c("asv_id", "tie_taxa", "ccovs", "bitscore_pb")], tie_taxa, asv_id))
-}
-```
-
-# 6. Building the Ecological Matrix
-
-Finally, we aggregate the curated ASV counts into a species-by-sample matrix, dropping any remaining ambiguous or unassigned ASVs.
-
-```{r}
-species_sample <- rb_build_species_matrix(
-  assignment = res_blast,
-  asv_table = asv_table,
-  include_ambiguous = FALSE,
-  unassigned = FALSE
-)
-
-cat("Final ecological matrix dimensions (Species x Samples):",
-    dim(species_sample),
-    "\n")
-```
-
-```{r eval=TRUE, echo=TRUE}
-species_sample <- rb_build_species_matrix(
-  assignment = output$res_blast_12,
-  asv_table = asv_table,
-  include_ambiguous = FALSE, 
-  unassigned = FALSE         
-)
-
-cat("Final ecological matrix dimensions (Species x Samples):", dim(species_sample), "\n")
-```
-
-## Mapping to Site Metadata and Visualization
-
-To visualize the data, we map the raw sample IDs to their corresponding site IDs and generate a heatmap.
-
-```{r}
-site_path <- "yz_edna_env_tbl.rds"
-site_info <- readRDS(site_path)
-
-# Pivot and join with site metadata
-species_matrix <- species_sample |>
-  pivot_longer(-species, names_to = "file", values_to = "abundance") |>
-  inner_join(dplyr::select(site_info, file, site, site_id), by = "file") |>
-  arrange(site_id) |>
-  dplyr::select(species, site_id, abundance) |>
-  filter(abundance > 0) |>
-  pivot_wider(names_from = site_id,
-              values_from = abundance,
-              values_fill = 0) |>
-  arrange(species) |>
-  column_to_rownames('species') |>
-  as.matrix()
-
-heatmap(
-  species_matrix,
-  Colv = NA,
-  Rowv = NA,
-  scale = 'column',
-  revC = TRUE,
-  xlab = "Sites",
-  cexRow = 0.5,
-  cexCol = 0.7,
-  main = "Species Abundance Across Yangtze River Sites"
-)
-```
-
-```{r eval=TRUE, echo=FALSE, out.width="80%"}
-knitr::include_graphics("species_site_heatmap.png")
-```
-
-# 7. Exporting Pipeline-Ready References
+# 3. Exporting Pipeline-Ready References
 
 Beyond taxonomic assignment, `regionbarcode` can format the user-defined selection of the reference database for use in other popular bioinformatics pipelines.
 
@@ -434,6 +200,8 @@ rb_export_usearch(native_12s, "refs_usearch.fasta")
 ```
 
 These exports preserve a consistent seven-rank taxonomy string while adapting headers to DADA2, QIIME2, BLASTN, and USEARCH/VSEARCH conventions.
+
+The export functions do not modify the SQLite database, but write flat files for downstream software. The number of exported sequences should match `nrow()` of the filtered reference object selected (`native_12s`).
 
 # Conclusion
 

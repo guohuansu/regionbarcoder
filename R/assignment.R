@@ -212,7 +212,7 @@ rb_build_species_matrix <- function(assignment, asv_table,
   x <- merge(assignment[, c("asv_id", "species", "assignment_status"), drop = FALSE],
              asv_table, by = "asv_id", all.x = FALSE, all.y = FALSE)
   keep <- !is.na(x$species)
-  if (!include_ambiguous) keep <- keep & x$assignment_status == "unique"
+  if (!include_ambiguous) keep <- keep & x$assignment_status %in% c("unique", "resolved_manual")
   if (!unassigned) keep <- keep & x$assignment_status != "no_match"
   x <- x[keep, , drop = FALSE]
   if (nrow(x) == 0) return(data.frame())

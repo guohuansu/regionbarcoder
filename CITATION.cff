@@ -1,0 +1,263 @@
+# ------------------------------------------------
+# CITATION.cff file created with {cffr} R package
+# See also: https://docs.ropensci.org/cffr/
+# ------------------------------------------------
+ 
+cff-version: 1.2.0
+message: 'To cite package "regionbarcoder" in publications use:'
+type: software
+license: MIT
+title: 'regionbarcoder: Audit, Deploy, and Export Regional DNA Reference Databases'
+version: 0.2.0
+abstract: Provides tools to query, audit, export, assign amplicon sequence variants,
+  and report regional DNA reference databases for ecological metabarcoding. The package
+  supports local full YZFishDB SQLite releases and enables Yangtze River Basin fish
+  eDNA ASV assignment against YZFishDB.
+authors:
+- family-names: Su
+  given-names: Guohuan
+  email: suguohuan@ihb.ac.cn
+- family-names: Kua
+  given-names: Zi Xun
+preferred-citation:
+  type: manual
+  title: 'regionbarcoder: Audit, Deploy, and Export Regional DNA Reference Databases'
+  authors:
+  - family-names: Kua
+    given-names: Zi Xun
+  - family-names: Su
+    given-names: Guohuan
+    email: suguohuan@ihb.ac.cn
+  - family-names: Xu
+    given-names: Jun
+  year: '2026'
+  notes: R package version 0.1.0
+contact:
+- family-names: Su
+  given-names: Guohuan
+  email: suguohuan@ihb.ac.cn
+references:
+- type: software
+  title: 'R: A Language and Environment for Statistical Computing'
+  notes: Depends
+  url: https://www.R-project.org/
+  authors:
+  - name: R Core Team
+    website: https://ror.org/02zz1nj61
+  institution:
+    name: R Foundation for Statistical Computing
+    website: https://ror.org/05qewa988
+    address: Vienna, Austria
+  year: '2026'
+  doi: 10.32614/R.manuals
+  version: '>= 4.1'
+- type: software
+  title: DBI
+  abstract: 'DBI: R Database Interface'
+  notes: Imports
+  url: https://dbi.r-dbi.org
+  repository: https://CRAN.R-project.org/package=DBI
+  authors:
+  - name: R Special Interest Group on Databases (R-SIG-DB)
+  - family-names: Wickham
+    given-names: Hadley
+  - family-names: Müller
+    given-names: Kirill
+    email: kirill@cynkra.com
+    orcid: https://orcid.org/0000-0002-1416-3412
+  year: '2026'
+  doi: 10.32614/CRAN.package.DBI
+- type: software
+  title: RSQLite
+  abstract: 'RSQLite: SQLite Interface for R'
+  notes: Imports
+  url: https://rsqlite.r-dbi.org
+  repository: https://CRAN.R-project.org/package=RSQLite
+  authors:
+  - family-names: Müller
+    given-names: Kirill
+    email: kirill@cynkra.com
+    orcid: https://orcid.org/0000-0002-1416-3412
+  - family-names: Wickham
+    given-names: Hadley
+  - family-names: James
+    given-names: David A.
+  - family-names: Falcon
+    given-names: Seth
+  year: '2026'
+  doi: 10.32614/CRAN.package.RSQLite
+- type: software
+  title: tools
+  abstract: 'R: A Language and Environment for Statistical Computing'
+  notes: Imports
+  authors:
+  - name: R Core Team
+    website: https://ror.org/02zz1nj61
+  institution:
+    name: R Foundation for Statistical Computing
+    website: https://ror.org/05qewa988
+    address: Vienna, Austria
+  year: '2026'
+  doi: 10.32614/R.manuals
+- type: software
+  title: testthat
+  abstract: 'testthat: Unit Testing for R'
+  notes: Suggests
+  url: https://testthat.r-lib.org
+  repository: https://CRAN.R-project.org/package=testthat
+  authors:
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@posit.co
+  year: '2026'
+  doi: 10.32614/CRAN.package.testthat
+  version: '>= 3.0.0'
+- type: software
+  title: withr
+  abstract: 'withr: Run Code ''With'' Temporarily Modified Global State'
+  notes: Suggests
+  url: https://withr.r-lib.org
+  repository: https://CRAN.R-project.org/package=withr
+  authors:
+  - family-names: Hester
+    given-names: Jim
+  - family-names: Henry
+    given-names: Lionel
+    email: lionel@posit.co
+  - family-names: Müller
+    given-names: Kirill
+    email: krlmlr+r@mailbox.org
+  - family-names: Ushey
+    given-names: Kevin
+    email: kevinushey@gmail.com
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@posit.co
+  - family-names: Chang
+    given-names: Winston
+  year: '2026'
+  doi: 10.32614/CRAN.package.withr
+- type: software
+  title: knitr
+  abstract: 'knitr: A General-Purpose Package for Dynamic Report Generation in R'
+  notes: Suggests
+  url: https://yihui.org/knitr/
+  repository: https://CRAN.R-project.org/package=knitr
+  authors:
+  - family-names: Xie
+    given-names: Yihui
+    email: xie@yihui.name
+    orcid: https://orcid.org/0000-0003-0645-5666
+  year: '2026'
+  doi: 10.32614/CRAN.package.knitr
+- type: software
+  title: rmarkdown
+  abstract: 'rmarkdown: Dynamic Documents for R'
+  notes: Suggests
+  url: https://pkgs.rstudio.com/rmarkdown/
+  repository: https://CRAN.R-project.org/package=rmarkdown
+  authors:
+  - family-names: Allaire
+    given-names: JJ
+    email: jj@posit.co
+  - family-names: Xie
+    given-names: Yihui
+    email: xie@yihui.name
+    orcid: https://orcid.org/0000-0003-0645-5666
+  - family-names: Dervieux
+    given-names: Christophe
+    email: cderv@posit.co
+    orcid: https://orcid.org/0000-0003-4474-2498
+  - family-names: McPherson
+    given-names: Jonathan
+    email: jonathan@posit.co
+  - family-names: Luraschi
+    given-names: Javier
+  - family-names: Ushey
+    given-names: Kevin
+    email: kevin@posit.co
+  - family-names: Atkins
+    given-names: Aron
+    email: aron@posit.co
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@posit.co
+  - family-names: Cheng
+    given-names: Joe
+    email: joe@posit.co
+  - family-names: Chang
+    given-names: Winston
+    email: winston@posit.co
+  - family-names: Iannone
+    given-names: Richard
+    email: rich@posit.co
+    orcid: https://orcid.org/0000-0003-3925-190X
+  year: '2026'
+  doi: 10.32614/CRAN.package.rmarkdown
+- type: software
+  title: tidyverse
+  abstract: 'tidyverse: Easily Install and Load the ''Tidyverse'''
+  notes: Suggests
+  url: https://tidyverse.tidyverse.org
+  repository: https://CRAN.R-project.org/package=tidyverse
+  authors:
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@rstudio.com
+  year: '2026'
+  doi: 10.32614/CRAN.package.tidyverse
+- type: software
+  title: Biostrings
+  abstract: 'Biostrings: Efficient manipulation of biological strings'
+  notes: Suggests
+  url: https://bioconductor.org/packages/Biostrings
+  repository: https://bioc-release.r-universe.dev
+  authors:
+  - family-names: Pagès
+    given-names: Hervé
+    email: hpages.on.github@gmail.com
+  - family-names: Aboyoun
+    given-names: Patrick
+  - family-names: Gentleman
+    given-names: Robert
+  - family-names: DebRoy
+    given-names: Saikat
+  year: '2026'
+- type: software
+  title: ggpubr
+  abstract: 'ggpubr: ''ggplot2'' Based Publication Ready Plots'
+  notes: Suggests
+  url: https://rpkgs.datanovia.com/ggpubr/
+  repository: https://CRAN.R-project.org/package=ggpubr
+  authors:
+  - family-names: Kassambara
+    given-names: Alboukadel
+    email: alboukadel.kassambara@gmail.com
+  year: '2026'
+  doi: 10.32614/CRAN.package.ggpubr
+- type: software
+  title: dplyr
+  abstract: 'dplyr: A Grammar of Data Manipulation'
+  notes: Suggests
+  url: https://dplyr.tidyverse.org
+  repository: https://CRAN.R-project.org/package=dplyr
+  authors:
+  - family-names: Wickham
+    given-names: Hadley
+    email: hadley@posit.co
+    orcid: https://orcid.org/0000-0003-4757-117X
+  - family-names: François
+    given-names: Romain
+    orcid: https://orcid.org/0000-0002-2444-4226
+  - family-names: Henry
+    given-names: Lionel
+  - family-names: Müller
+    given-names: Kirill
+    orcid: https://orcid.org/0000-0002-1416-3412
+  - family-names: Vaughan
+    given-names: Davis
+    email: davis@posit.co
+    orcid: https://orcid.org/0000-0003-4777-038X
+  year: '2026'
+  doi: 10.32614/CRAN.package.dplyr
+

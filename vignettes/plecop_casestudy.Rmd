@@ -350,7 +350,7 @@ pred_rb_blast <- res_rb_blast |> select(asv_id, species)
 
 ## 5c. SINTAX
 
-SINTAX is *k*-mer heuristic alignment plus bootstrap taxonomic assignment approach that is often used through USEARCH/VSEARCH. Unlike BLASTn, it does not produce the same alignment metrics consumed by `regionbarcoder`; its output is converted to a simple ASV-to-species prediction table before evaluation. The `--sintax_cutoff` parameter controls the minimum bootstrap confidence required to report an assignment at a given rank. A cutoff of 0.8 means that SINTAX will only report a species-level call if it is ≥80% confident that the assigned taxon is correct.
+SINTAX is *k*-mer heuristic alignment plus bootstrap taxonomic assignment approach that is often used through USEARCH/VSEARCH. Unlike BLASTn, it does not produce the same alignment metrics consumed by `regionbarcoder`; its output is converted to a simple ASV-to-species prediction table before evaluation. The `--sintax_cutoff` parameter controls the minimum bootstrap confidence required to report an assignment at a given rank. A cutoff of 0.8 means that SINTAX will only report a species-level call if it is $\ge 80\%$ confident that the assigned taxon is correct.
 
 `regionbarcoder` allows users to export the selected reference database as FASTA files, with pre-defined templates for commonly used bioinformatic pipelines (BLASTn, USEARCH/VSEARCH, QIIME2, DADA2). 
 
